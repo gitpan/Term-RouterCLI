@@ -1,0 +1,39 @@
+Term::RouterCLI
+==========================
+
+INSTALLATION
+To install this module type the following:
+    perl Makefile.PL
+    make
+    make test
+    make install
+
+
+DEPENDENCIES
+This module requires these other modules and libraries:
+    Config::General (2.50)          [License = Perl]
+    Digest::SHA (5.62)              [License = Perl]
+    Env (1.00)  
+    FileHandle (2.02)
+    parent (0.221)
+    POSIX (1.17)
+    Sys::Syslog (0.29)              [License = Perl]
+    Term::ReadKey (2.30)
+    Term::ReadLine::Gnu (1.20)
+    Test::More (0.98)               [License = Perl]
+    Test::Output (1.01)             [License = Perl]
+    Text::Shellwords::Cursor (0.81) [License = MIT]
+    Ethtool (http://www.kernel.org/pub/software/network/ethtool/)
+
+NOTES
+    I use a modified version of Ethtool so as to get rid of some STDERR messages.
+    To find out what version of a module you have installed run something like the following
+        perl -MDigest::SHA -e 'print "$Digest::SHA::VERSION\n"'
+
+LICENCE
+See LICENSE file included with this package
+
+
+COPYRIGHT
+Copyright (C) 2011 by Bret Jordan all rights reserved
+
