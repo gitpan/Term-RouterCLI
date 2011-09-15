@@ -20,7 +20,6 @@
 #
 package Enable;
 
-
 use strict;
 use Term::RouterCLI::Languages;
 use UserExec;
@@ -29,7 +28,7 @@ use Enable::Configure::Terminal;
 
 
 
-sub EnableMode {
+sub CommandTree {
     my $self = shift;
     my $lang = new Term::RouterCLI::Languages( _oParent => $self );
     my $strings = $lang->LoadStrings("Enable");
@@ -39,7 +38,7 @@ sub EnableMode {
         "show"  => {
             desc    => $strings->{show_d},
             help    => $strings->{show_h},
-            cmds    => &Enable::Show::EnableShowCommands($self)
+            cmds    => &Enable::Show::CommandTree($self)
         },
         "exit"  => {
             desc    => $strings->{exit_d},
@@ -55,7 +54,7 @@ sub EnableMode {
                 my $self = shift;
                 $self->SetPromptLevel('> ');
                 $self->SetPrompt($self->{_oConfig}->{_hConfigData}->{hostname});
-                $self->CreateCommandTree(&UserExec::UserExecMode($self));
+                $self->CreateCommandTree(&UserExec::CommandTree($self));
             }
         },
         "configure" => {
@@ -67,7 +66,7 @@ sub EnableMode {
                         my $self = shift;
                         $self->SetPromptLevel('(config)# ');
                         $self->SetPrompt($self->{_oConfig}->{_hConfigData}->{hostname});
-                        $self->CreateCommandTree(&Enable::Configure::Terminal::ConfigureTerminalMode($self));
+                        $self->CreateCommandTree(&Enable::Configure::Terminal::CommandTree($self));
                     } 
                 }
             }
@@ -76,12 +75,12 @@ sub EnableMode {
     
 
     # UserExec level commands should also be avaliable in Enable Mode
-    my $hash_ref_userexec = &UserExec::UserExecMode($self);
+    my $hash_ref_additional = &UserExec::CommandTree($self);
     
     # Enable level commands should take presidence over UserExec commands if they are duplicates
-    my %hash = (%$hash_ref_userexec, %$hash_ref);
+    my %hash = (%$hash_ref_additional, %$hash_ref);
     
-    return($hash_ref);
+    return(\%hash);
 }
 
 

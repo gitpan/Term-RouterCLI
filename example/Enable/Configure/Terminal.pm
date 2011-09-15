@@ -19,14 +19,13 @@
 #
 package Enable::Configure::Terminal;
 
-
 use strict;
 use Term::RouterCLI::Languages;
 use Enable;
 
 
 
-sub ConfigureTerminalMode {
+sub CommandTree {
     my $self = shift;
     my $lang = new Term::RouterCLI::Languages( _oParent => $self );
     my $strings = $lang->LoadStrings("Enable/Configure/Terminal");
@@ -41,7 +40,7 @@ sub ConfigureTerminalMode {
                 my $self = shift;
                 $self->SetPromptLevel('# ');
                 $self->SetPrompt($self->{_oConfig}->{_hConfigData}->{hostname});
-                $self->CreateCommandTree(&Enable::EnableMode($self));
+                $self->CreateCommandTree(&Enable::CommandTree($self));
             },
         },
         "hostname"  => {
@@ -59,7 +58,7 @@ sub ConfigureTerminalMode {
             code    => sub { 
                 my $self = shift; 
                 $lang->SetLanguage(); 
-                $self->CreateCommandTree(&Enable::Configure::Terminal::ConfigureTerminalMode($self));
+                $self->CreateCommandTree(&Enable::Configure::Terminal::CommandTree($self));
             } 
         },
         "password"  => {
@@ -70,7 +69,7 @@ sub ConfigureTerminalMode {
             code    => sub { 
                 my $self = shift; 
                 $lang->SetLanguage(); 
-                $self->CreateCommandTree(&Enable::Configure::Terminal::ConfigureTerminalMode($self));
+                $self->CreateCommandTree(&Enable::Configure::Terminal::CommandTree($self));
             } 
         },
     };

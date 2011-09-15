@@ -1,8 +1,32 @@
-Term::RouterCLI
-==========================
+Term::RouterCLI is Copyright (C) 2011, Bret Jordan
+==================================================
+HOSTED AT
+    http://ciscocli.sourceforge.net
+
+
+MAJOR FEATURES
+    The major features of Term::RouterCLI are as follows:
+    Extensible tree based parsing engine for a command line interface
+    Modular design
+    TAB and ? mark completion
+    Recursive completion
+    Recursive command interpolation
+    Hidden commands and command trees
+    Authenticated commands and command trees
+    Multi-user authentication
+    Per user command histories
+    Multiple authentication servers
+    Audit log support
+    International support for all command descriptions, help documentation, and argument help
+    Hardware interaction framework as an example 
+    Fully working cli.pl example
+    Apache style configuration file
+    Separate vendor and user parts to the configuration file
+    Uses log4perl for debugging
+
 
 INSTALLATION
-To install this module type the following:
+    To install this module type the following:
     perl Makefile.PL
     make
     make test
@@ -10,30 +34,40 @@ To install this module type the following:
 
 
 DEPENDENCIES
-This module requires these other modules and libraries:
+    This module requires these other modules and libraries:
     Config::General (2.50)          [License = Perl]
     Digest::SHA (5.62)              [License = Perl]
-    Env (1.00)  
-    FileHandle (2.02)
-    parent (0.221)
-    POSIX (1.17)
+    Env (1.00)                      [License = Perl]
+    FileHandle (2.02)               [License = Perl]
+    Log:Log4perl (1.33)             [License = Perl]
+    parent (0.221)                  [License = Perl]
+    POSIX (1.17)                    [License = Perl]
     Sys::Syslog (0.29)              [License = Perl]
-    Term::ReadKey (2.30)
-    Term::ReadLine::Gnu (1.20)
+    Term::ReadKey (2.30)            [License = Opensource]
+    Term::ReadLine::Gnu (1.20)      [License = Perl]
     Test::More (0.98)               [License = Perl]
     Test::Output (1.01)             [License = Perl]
     Text::Shellwords::Cursor (0.81) [License = MIT]
     Ethtool (http://www.kernel.org/pub/software/network/ethtool/)
 
+
 NOTES
+    The tarball has a fully working example 
+    
     I use a modified version of Ethtool so as to get rid of some STDERR messages.
+    
     To find out what version of a module you have installed run something like the following
         perl -MDigest::SHA -e 'print "$Digest::SHA::VERSION\n"'
 
-LICENCE
-See LICENSE file included with this package
+
+LICENCE INFORMATION
+    See the LICENSE file included with this package for license details. 
+
+
+AUTHOR
+    Bret Jordan, jordan at open1x littledot org, jordan2175 at gmail littledot com
 
 
 COPYRIGHT
-Copyright (C) 2011 by Bret Jordan all rights reserved
+    Copyright (C) 2011 by Bret Jordan all rights reserved
 

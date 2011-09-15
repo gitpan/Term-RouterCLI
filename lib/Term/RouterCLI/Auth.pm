@@ -22,15 +22,16 @@ package Term::RouterCLI::Auth;
 use 5.8.8;
 use strict;
 use warnings;
-
-use parent qw(Exporter);
-our @EXPORT      = qw();
-our @EXPORT_OK   = qw();
-our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
-
+use Term::RouterCLI::Debugger;
+use Log::Log4perl;
 use Term::ReadKey;
 use Digest::SHA qw(hmac_sha512_hex);
+
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
+
+
+my $oDebugger = new Term::RouterCLI::Debugger();
 
 
 sub new
@@ -39,15 +40,24 @@ sub new
     my $class = ref($pkg) || $pkg;  
 
     my $self = {};
-    $self->{_sName}                 = $pkg;        # Lets set the object name so we can use it in debugging
-    $self->{_iDebug}                = 0;
-        
-    # Lets overwrite any defaults with values that are passed in
-    my %hParameters = @_;
-    foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
-
+    $self->{'_sName'}               = $pkg;         # Lets set the object name so we can use it in debugging
     bless ($self, $class);
+    
+    # Lets send any passed in arguments to the _init method
+    $self->_init(@_);
     return $self;
+}
+
+sub _init
+{
+    my $self = shift;
+    my %hParameters = @_;
+
+    # Lets overwrite any defaults with values that are passed in
+    if (%hParameters)
+    {
+        foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
+    }
 }
 
 sub DESTROY
@@ -56,13 +66,21 @@ sub DESTROY
     $self = {};
 } 
 
+
+
+# ----------------------------------------
+# Public Methods
+# ----------------------------------------
 sub PromptForUsername
 {
     # This method will prompt for the username to be entered on the command line
     # Return:
     # string_ref (password entered)
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
     my $sUsername = "";
+
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
     
     while(ord(my $key = ReadKey(0)) != 10) 
     {
@@ -87,6 +105,7 @@ sub PromptForUsername
 
         else { $sUsername = $sUsername.$key; }
     }
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return \$sUsername;
 }
 
@@ -96,8 +115,11 @@ sub PromptForPassword
     # Return:
     # string_ref (password entered)
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
     my $sPassword = "";
-        
+    
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
+    
     # The following will hide all typeing, the while statement below will print * characters
     ReadMode(4);
     while(ord(my $key = ReadKey(0)) != 10) 
@@ -131,7 +153,8 @@ sub PromptForPassword
     ReadMode(0);
     # Since the Term::ReadKey method above strips out the carriage return, lets add it back
     print "\n";
-
+    
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return \$sPassword;
 }
 
@@ -148,15 +171,16 @@ sub EncryptPassword
     my $iCryptIDType = shift;
     my $sPassword = shift;
     my $sSalt = shift;
+    my $logger = $oDebugger->GetLogger($self);
     my $sCryptPassword = "";
 
-    print "--DEBUG $self->{_sName} 0-- ### Entering EncryptPassword ###\n" if ($self->{_iDebug} >= 1);
-     
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
+
     # If Crypt ID Type == 0, then there is no encryption
     if    ( $$iCryptIDType == 0 && defined $$sPassword) { $sCryptPassword = $$sPassword; }
     elsif ( $$iCryptIDType == 6 && defined $$sPassword && defined $$sSalt) { $sCryptPassword = hmac_sha512_hex($$sPassword, $$sSalt); }
 
-    print "--DEBUG $self->{_sName} 0-- ### Leaving EncryptPassword ###\n" if ($self->{_iDebug} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return \$sCryptPassword;
 }
 
@@ -171,23 +195,23 @@ sub SplitPasswordString
     #   string_ref (password)
     my $self = shift;
     my $sPasswordString = shift;
+    my $logger = $oDebugger->GetLogger($self);
     my $iID;
     my $sSalt = "";
     my $sPassword = "";
 
-    print "--DEBUG $self->{_sName} 0-- ### Entering SplitPasswordString ###\n" if ($self->{_iDebug} >= 1);
-    print "--DEBUG $self->{_sName} 1-- sPasswordString: $$sPasswordString\n" if ($self->{_iDebug} >= 3);    
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
+    $logger->debug("$self->{'_sName'} - sPasswordString: $$sPasswordString");
 
     # Split key from password
     ($iID, $sSalt, $sPassword) = (split /\$/, $$sPasswordString)[1..3];
+
+
+    $logger->debug("$self->{'_sName'} - iID: $iID");
+    $logger->debug("$self->{'_sName'} - sSalt: $sSalt");
+    $logger->debug("$self->{'_sName'} - sPassword: $sPassword");  
     
-    if ($self->{_iDebug} >= 3)
-    {
-        print "--DEBUG $self->{_sName} 1-- iID: $iID\n";
-        print "--DEBUG $self->{_sName} 1-- sSalt: $sSalt\n";
-        print "--DEBUG $self->{_sName} 1-- sPassword: $sPassword\n";
-    }
-    print "--DEBUG $self->{_sName} 0-- ### Leaving SplitPasswordString ###\n" if ($self->{_iDebug} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return (\$iID, \$sSalt, \$sPassword);
 }
 

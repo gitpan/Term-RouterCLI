@@ -29,6 +29,7 @@ use Test::Output;
 
 
 my $cli = new Term::RouterCLI( _iDebugCompletion => 0 );
+$cli->SetConfigFilename('example/etc/RouterCLI.conf');
 $cli->SetOutput();
 $cli->CreateCommandTree(&TestCommandTree());
 

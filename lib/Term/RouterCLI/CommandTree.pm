@@ -27,7 +27,8 @@ use parent qw(Exporter);
 our @EXPORT      = qw();
 our @EXPORT_OK   = qw( CreateCommandTree GetCurrentCommandTree GetFullCommandTree AddToCommandTree AuthenticateCommandTree );
 our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
 
 
 
@@ -44,9 +45,9 @@ sub CreateCommandTree
     my $hCommandTree = shift;
     
     # Lets just make double sure the configuration file has been loaded.
-    unless (defined $self->{_oConfig}) { $self->LoadConfig();}
+    unless (defined $self->{'_oConfig'}) { $self->LoadConfig();}
     
-    $self->{_hFullCommandTree} = $hCommandTree;
+    $self->{'_hFullCommandTree'} = $hCommandTree;
 }
 
 sub GetCurrentCommandTree
@@ -58,7 +59,7 @@ sub GetCurrentCommandTree
     
     # If there is no _hCommandTreeAtLevel yet, then lets use the _hFullCommandTree as this means
     # we are just starting at the top
-    return $self->{_hCommandTreeAtLevel} || $self->GetFullCommandTree();
+    return $self->{'_hCommandTreeAtLevel'} || $self->GetFullCommandTree();
 }
 
 sub GetFullCommandTree
@@ -70,7 +71,7 @@ sub GetFullCommandTree
     
     # If there is no _hCommandTreeAtLevel yet, then lets use the _hFullCommandTree as this means
     # we are just starting at the top
-    return $self->{_hFullCommandTree};
+    return $self->{'_hFullCommandTree'};
 }
 
 sub AddToCommandTree
@@ -81,7 +82,7 @@ sub AddToCommandTree
     my $self = shift;
     my $hAdditionalCommandTree = shift;
 
-    my $hCurrentCommandTree = $self->{_hFullCommandTree} || {};
+    my $hCurrentCommandTree = $self->{'_hFullCommandTree'} || {};
     foreach (keys %$hAdditionalCommandTree) 
     {
         $hCurrentCommandTree->{$_} = $hAdditionalCommandTree->{$_};

@@ -22,15 +22,16 @@ package Term::RouterCLI::Config;
 use 5.8.8;
 use strict;
 use warnings;
-
-use parent qw(Exporter);
-our @EXPORT      = qw();
-our @EXPORT_OK   = qw();
-our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
-
+use Term::RouterCLI::Debugger;
 use Config::General();
 use File::Copy;
+use Log::Log4perl;
+
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
+
+
+my $oDebugger = new Term::RouterCLI::Debugger();
 
 
 sub new
@@ -39,18 +40,28 @@ sub new
     my $class = ref($pkg) || $pkg;  
     
     my $self = {};
-    $self->{_sName}                 = $pkg;        # Lets set the object name so we can use it in debugging
-    $self->{_sFilename}             = undef;
-    $self->{_hConfigData}           = undef;
-    $self->{_oConfigFile}           = undef;
-    $self->{_iDebug}                = 0;
-    
-    # Lets overwrite any defaults with values that are passed in
-    my %hParameters = @_;
-    foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
+    $self->{'_sName'}                 = $pkg;        # Lets set the object name so we can use it in debugging
+    bless ($self, $class);
 
-    bless ($self, $class); 
+    # Lets send any passed in arguments to the _init method
+    $self->_init(@_);
     return $self;
+}
+
+sub _init
+{
+    my $self = shift;
+    my %hParameters = @_;
+
+    $self->{'_sFilename'}             = undef;
+    $self->{'_hConfigData'}           = undef;
+    $self->{'_oConfigFile'}           = undef;
+
+    # Lets overwrite any defaults with values that are passed in
+    if (%hParameters)
+    {
+        foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
+    }
 }
 
 sub DESTROY
@@ -59,6 +70,11 @@ sub DESTROY
     $self = {};
 } 
 
+
+
+# ----------------------------------------
+# Public Methods
+# ----------------------------------------
 sub SetFilename 
 { 
     # This method is for setting the filename for the configuration file
@@ -66,7 +82,7 @@ sub SetFilename
     #   string(file name)
     my $self = shift;
     my $parameter = shift;
-    $self->{_sFilename} = $parameter;
+    if (defined $parameter) { $self->{'_sFilename'} = $parameter; }
 }
 
 sub LoadConfig
@@ -76,17 +92,18 @@ sub LoadConfig
 
     my $oConfig = new Config::General
     (
-        -ConfigFile => "$self->{_sFilename}",
-        -LowerCaseNames => 1,
+        -ConfigFile => "$self->{'_sFilename'}",
+        -LowerCaseNames => 0,
         -MergeDuplicateOptions => 1,
         -AutoTrue => 0,
-        -ExtendedAccess => 1
+        -ExtendedAccess => 1,
+        -SaveSorted => 1
     );
-    $self->{_oConfigFile} = $oConfig;
+    $self->{'_oConfigFile'} = $oConfig;
 
     # Lets get all of the configuration in one pass to save disk IO then lets save the data in to the object 
     my %hConfiguration = $oConfig->getall();
-    $self->{_hConfigData} = \%hConfiguration;
+    $self->{'_hConfigData'} = \%hConfiguration;
 }
 
 sub ReloadConfig
@@ -94,7 +111,7 @@ sub ReloadConfig
     # This method will reload the current configuration
     my $self = shift;
     
-    $self->{_hConfigData} = undef;
+    $self->{'_hConfigData'} = undef;
     $self->LoadConfig();
 }
 
@@ -102,21 +119,27 @@ sub SaveConfig
 {
     # This method will save out the hash of the configuration back to the same file.  It will make a backup first
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
 
     # Backup configuration first
     $self->BackupConfig();
     
     # Save current configuration
-    $self->{_oConfigFile}->save_file("$self->{_sFilename}", $self->{_hConfigData});
+    $self->{'_oConfigFile'}->save_file("$self->{'_sFilename'}", $self->{'_hConfigData'});
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub BackupConfig
 {
     # This method will make a backup of the current configuration file
     my $self = shift;
-    my $sOriginalFile = $self->{_sFilename};
-    my $sBackupFile = $self->{_sFilename} . ".bak";
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');    
+    my $sOriginalFile = $self->{'_sFilename'};
+    my $sBackupFile = $self->{'_sFilename'} . ".bak";
     copy ($sOriginalFile, $sBackupFile);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 return 1;

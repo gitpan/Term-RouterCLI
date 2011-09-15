@@ -20,7 +20,6 @@
 #
 package UserExec;
 
-
 use strict;
 use Term::RouterCLI::Languages;
 use UserExec::Show;
@@ -28,7 +27,7 @@ use Enable;
 
 
 
-sub UserExecMode {
+sub CommandTree {
     my $self = shift;
     my $lang = new Term::RouterCLI::Languages( _oParent => $self );
     my $strings = $lang->LoadStrings("UserExec");
@@ -56,7 +55,7 @@ sub UserExecMode {
         "show"  => {
             desc    => $strings->{show_d},
             help    => $strings->{show_h},
-            cmds    => &UserExec::Show::UserExecShowCommands($self),
+            cmds    => &UserExec::Show::CommandTree($self),
         },
         "enable" => {
             desc    => $strings->{enable_d},
@@ -68,7 +67,7 @@ sub UserExecMode {
                 my $self = shift;
                 $self->SetPromptLevel('# ');
                 $self->SetPrompt($self->{_oConfig}->{_hConfigData}->{hostname});
-                $self->CreateCommandTree(&Enable::EnableMode($self));
+                $self->CreateCommandTree(&Enable::CommandTree($self));
             },
         },
         "support" => {

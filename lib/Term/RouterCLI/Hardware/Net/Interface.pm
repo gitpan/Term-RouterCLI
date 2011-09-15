@@ -22,16 +22,17 @@ package Term::RouterCLI::Hardware::Net::Interface;
 use 5.8.8;
 use strict;
 use warnings;
+use Term::RouterCLI::Debugger;
+use Log::Log4perl;
 
-use parent qw(Exporter);
-our @EXPORT      = qw();
-our @EXPORT_OK   = qw();
-our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
 
 # Define our parent
 use parent qw(Term::RouterCLI::Hardware::Net);
 
+
+my $oDebugger = new Term::RouterCLI::Debugger();
 my $ethtool = './bin/ethtool';
 
 
@@ -40,6 +41,8 @@ sub GetInterfaceList
     # This method will get a list of all avaliable interface on the system.  We will check the configuration 
     # file for any excluded interfaces.  
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
     
     my @aInterfacesProcData = `cat /proc/net/dev`;
     splice (@aInterfacesProcData, 0, 2);
@@ -50,9 +53,10 @@ sub GetInterfaceList
         my ($key, $value) = split (":", $_);
 
         # There are some interface that we will want to skip so lets flag them as disabled
-        if (exists $self->{_oConfig}->{_hConfigData}->{system}->{excluded_interfaces}->{$key}) { $self->{_hInterfaces}->{$key}->{enabled} = 0; }
-        else { $self->{_hInterfaces}->{$key}->{enabled} = 1; }
+        if (exists $self->{'_oConfig'}->{'_hConfigData'}->{'system'}->{'excluded_interfaces'}->{$key}) { $self->{'_hInterfaces'}->{$key}->{'enabled'} = 0; }
+        else { $self->{'_hInterfaces'}->{$key}->{'enabled'} = 1; }
     }
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub GetInterfaceDetails
@@ -64,6 +68,8 @@ sub GetInterfaceDetails
     #   hash_ref (string details and stats)
     my $self = shift;
     my $sInterfaceName = shift;
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
 
     # Just some sanity verification
     unless (defined $sInterfaceName) { $sInterfaceName = "eth0"; }
@@ -71,37 +77,37 @@ sub GetInterfaceDetails
     # Lets set all initial values so the printf lines do not complain if the interface does not in fact
     # have all of the data we expect.
     my $hIntDetails = {};
-    $hIntDetails->{name} = $sInterfaceName;
-    $hIntDetails->{mac_address} = "";
-    $hIntDetails->{link_status} = "";
-    $hIntDetails->{speed} = "";
-    $hIntDetails->{duplex} = "";
-    $hIntDetails->{port} = "";
-    $hIntDetails->{auto_negotiation} = "";
-    $hIntDetails->{link_detected} = "";
-    $hIntDetails->{rx_bytes} = 0;
-    $hIntDetails->{tx_bytes} = 0;
-    $hIntDetails->{rx_packets} = 0;
-    $hIntDetails->{tx_packets} = 0;
-    $hIntDetails->{rx_broadcast} = 0;
-    $hIntDetails->{tx_broadcast} = 0;
-    $hIntDetails->{rx_multicast} = 0;
-    $hIntDetails->{tx_multicast} = 0;
-    $hIntDetails->{rx_frame_errors} = 0;
-    $hIntDetails->{rx_crc_errors} = 0;
-    $hIntDetails->{rx_align_errors} = 0;
-    $hIntDetails->{rx_over_errors} = 0;
-    $hIntDetails->{rx_short_length_errors} = 0;
-    $hIntDetails->{rx_long_length_errors} = 0;
-    $hIntDetails->{rx_errors} = 0;
-    $hIntDetails->{tx_carrier_errors} = 0;
-    $hIntDetails->{tx_window_errors} = 0;
-    $hIntDetails->{tx_dropped} = 0;
-    $hIntDetails->{tx_aborted_errors} = 0;
-    $hIntDetails->{tx_fifo_errors} = 0;
-    $hIntDetails->{tx_heartbeat_errors} = 0;
-    $hIntDetails->{collisions} = 0;
-    $hIntDetails->{tx_errors} = 0;
+    $hIntDetails->{'name'} = $sInterfaceName;
+    $hIntDetails->{'mac_address'} = "";
+    $hIntDetails->{'link_status'} = "";
+    $hIntDetails->{'speed'} = "";
+    $hIntDetails->{'duplex'} = "";
+    $hIntDetails->{'port'} = "";
+    $hIntDetails->{'auto_negotiation'} = "";
+    $hIntDetails->{'link_detected'} = "";
+    $hIntDetails->{'rx_bytes'} = 0;
+    $hIntDetails->{'tx_bytes'} = 0;
+    $hIntDetails->{'rx_packets'} = 0;
+    $hIntDetails->{'tx_packets'} = 0;
+    $hIntDetails->{'rx_broadcast'} = 0;
+    $hIntDetails->{'tx_broadcast'} = 0;
+    $hIntDetails->{'rx_multicast'} = 0;
+    $hIntDetails->{'tx_multicast'} = 0;
+    $hIntDetails->{'rx_frame_errors'} = 0;
+    $hIntDetails->{'rx_crc_errors'} = 0;
+    $hIntDetails->{'rx_align_errors'} = 0;
+    $hIntDetails->{'rx_over_errors'} = 0;
+    $hIntDetails->{'rx_short_length_errors'} = 0;
+    $hIntDetails->{'rx_long_length_errors'} = 0;
+    $hIntDetails->{'rx_errors'} = 0;
+    $hIntDetails->{'tx_carrier_errors'} = 0;
+    $hIntDetails->{'tx_window_errors'} = 0;
+    $hIntDetails->{'tx_dropped'} = 0;
+    $hIntDetails->{'tx_aborted_errors'} = 0;
+    $hIntDetails->{'tx_fifo_errors'} = 0;
+    $hIntDetails->{'tx_heartbeat_errors'} = 0;
+    $hIntDetails->{'collisions'} = 0;
+    $hIntDetails->{'tx_errors'} = 0;
 
     
     # Lets try and get data from /proc/net/dev as ethtool does not have support for all interface types.  
@@ -175,7 +181,9 @@ sub GetInterfaceDetails
     else { $hIntDetails->{link_status} = "Down";}
 
     # Add the interface details to the object
-    $self->{_hInterfaces}->{$sInterfaceName}->{details} = $hIntDetails;
+    $self->{'_hInterfaces'}->{$sInterfaceName}->{'details'} = $hIntDetails;
+
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub PrintInterfaceDetails
@@ -185,7 +193,10 @@ sub PrintInterfaceDetails
     #   hash_ref (interface details and stats)
     my $self = shift;
     my $sInterfaceName = shift;
-    my $hInterface = $self->{_hInterfaces}->{$sInterfaceName}->{details};
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
+    
+    my $hInterface = $self->{'_hInterfaces'}->{$sInterfaceName}->{'details'};
 
     print "\n";
     print "$hInterface->{name} is $hInterface->{link_status}\n";
@@ -202,7 +213,7 @@ sub PrintInterfaceDetails
     print "  $hInterface->{tx_errors} output errors, $hInterface->{tx_carrier_errors} carrier, $hInterface->{tx_window_errors} window, $hInterface->{tx_dropped} dropped, $hInterface->{tx_aborted_errors} aborted, $hInterface->{tx_fifo_errors} fifo, $hInterface->{collisions} collisions\n";
     print "\n";
 
-
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub PrintInterfaceDetailsTabbed
@@ -212,35 +223,38 @@ sub PrintInterfaceDetailsTabbed
     #   hash_ref (interface details and stats)
     my $self = shift;
     my $sInterfaceName = shift;
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
     
     unless (defined $sInterfaceName) { return 0; }
 
-    if ( exists $self->{_hInterfaces}->{$sInterfaceName} && $self->{_hInterfaces}->{$sInterfaceName}->{enabled} == 1 )
+    if ( exists $self->{'_hInterfaces'}->{$sInterfaceName} && $self->{'_hInterfaces'}->{$sInterfaceName}->{'enabled'} == 1 )
     {
         $self->GetInterfaceDetails($sInterfaceName);
-        my $hInterface = $self->{_hInterfaces}->{$sInterfaceName}->{details};
+        my $hInterface = $self->{'_hInterfaces'}->{$sInterfaceName}->{'details'};
         
         print "\nInterface Details\n";
-        printf "    %-15s : %18s       %-15s : %18s\n", "Name",           "$hInterface->{name}",                   "Speed",     "$hInterface->{speed}";
-        printf "    %-15s : %18s       %-15s : %18s\n", "Status",         "$hInterface->{link_status}",            "Duplex",     "$hInterface->{duplex}";
-        printf "    %-15s : %18s       %-15s: %18s\n", "MAC Address",    "$hInterface->{mac_address}",            "Auto-Negotiation",     "$hInterface->{auto_negotiation}";
+        printf "    %-15s : %18s       %-15s : %18s\n", "Name",           "$hInterface->{'name'}",                   "Speed",     "$hInterface->{'speed'}";
+        printf "    %-15s : %18s       %-15s : %18s\n", "Status",         "$hInterface->{'link_status'}",            "Duplex",     "$hInterface->{'duplex'}";
+        printf "    %-15s : %18s       %-15s: %18s\n", "MAC Address",    "$hInterface->{'mac_address'}",            "Auto-Negotiation",     "$hInterface->{'auto_negotiation'}";
         print "\n";
         print "  Transmit Totals\n";
-        printf "    %-15s : %18d       %-15s : %18d\n", "Bytes Rx",       "$hInterface->{rx_bytes}",               "Bytes Tx",     "$hInterface->{tx_bytes}";
-        printf "    %-15s : %18d       %-15s : %18d\n", "Frmaes Rx",      "$hInterface->{rx_packets}",             "Frames Tx",   "$hInterface->{tx_packets}";
-        printf "    %-15s : %18d       %-15s : %18d\n", "Broadcast Rx",   "$hInterface->{rx_broadcast}",           "Broadcast Tx", "$hInterface->{tx_broadcast}";
-        printf "    %-15s : %18d       %-15s : %18d\n", "Multicast Rx",   "$hInterface->{rx_multicast}",           "Multicast Tx", "$hInterface->{tx_multicast}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "Bytes Rx",       "$hInterface->{'rx_bytes'}",               "Bytes Tx",     "$hInterface->{'tx_bytes'}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "Frmaes Rx",      "$hInterface->{'rx_packets'}",             "Frames Tx",   "$hInterface->{'tx_packets'}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "Broadcast Rx",   "$hInterface->{'rx_broadcast'}",           "Broadcast Tx", "$hInterface->{'tx_broadcast'}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "Multicast Rx",   "$hInterface->{'rx_multicast'}",           "Multicast Tx", "$hInterface->{'tx_multicast'}";
         print "\n";
-        printf "  %-15s   : %18d       %-15s : %18d\n", "Recieve Errors", "$hInterface->{rx_errors}",            "Transmit Errors", "$hInterface->{tx_errors}";
-        printf "    %-15s : %18d       %-15s : %18d\n", "Frame Rx",     "$hInterface->{rx_frame_errors}",        "  Carrier Tx",      "$hInterface->{tx_carrier_errors}";
-        printf "    %-15s : %18d       %-15s : %18d\n", "Align Rx",     "$hInterface->{rx_align_errors}",        "  Dropped Tx",      "$hInterface->{tx_dropped}";
-        printf "    %-15s : %18d       %-15s : %18d\n", "Runts Rx",     "$hInterface->{rx_short_length_errors}", "  FIFO Tx",         "$hInterface->{tx_fifo_errors}";
-        printf "    %-15s : %18d       %-15s : %18d\n", "CRC Rx",       "$hInterface->{rx_crc_errors}",          "  Window Tx",       "$hInterface->{tx_window_errors}";
-        printf "    %-15s : %18d       %-15s : %18d\n", "Over Rx",      "$hInterface->{rx_over_errors}",         "  Aborted Tx",      "$hInterface->{tx_aborted_errors}";
-        printf "    %-15s : %18d       %-15s : %18d\n", "Giants Rx",    "$hInterface->{rx_long_length_errors}",  "  Collisions Tx",   "$hInterface->{collisions}";
+        printf "  %-15s   : %18d       %-15s : %18d\n", "Recieve Errors", "$hInterface->{'rx_errors'}",            "Transmit Errors", "$hInterface->{'tx_errors'}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "Frame Rx",     "$hInterface->{'rx_frame_errors'}",        "  Carrier Tx",      "$hInterface->{'tx_carrier_errors'}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "Align Rx",     "$hInterface->{'rx_align_errors'}",        "  Dropped Tx",      "$hInterface->{'tx_dropped'}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "Runts Rx",     "$hInterface->{'rx_short_length_errors'}", "  FIFO Tx",         "$hInterface->{'tx_fifo_errors'}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "CRC Rx",       "$hInterface->{'rx_crc_errors'}",          "  Window Tx",       "$hInterface->{'tx_window_errors'}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "Over Rx",      "$hInterface->{'rx_over_errors'}",         "  Aborted Tx",      "$hInterface->{'tx_aborted_errors'}";
+        printf "    %-15s : %18d       %-15s : %18d\n", "Giants Rx",    "$hInterface->{'rx_long_length_errors'}",  "  Collisions Tx",   "$hInterface->{'collisions'}";
         print "\n";
     }
     else { print "Interface not found!\n"; }
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub PrintInterfaceBrief
@@ -250,19 +264,22 @@ sub PrintInterfaceBrief
     #   hash_ref (interface details and stats)
     my $self = shift;
     my $sInterfaceName = shift;
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
     
     unless (defined $sInterfaceName) { return 0; }
 
-    if ( exists $self->{_hInterfaces}->{$sInterfaceName} && $self->{_hInterfaces}->{$sInterfaceName}->{enabled} == 1 )
+    if ( exists $self->{'_hInterfaces'}->{$sInterfaceName} && $self->{'_hInterfaces'}->{$sInterfaceName}->{'enabled'} == 1 )
     {
         $self->GetInterfaceDetails($sInterfaceName);
-        my $hInterfaceDetails = $self->{_hInterfaces}->{$sInterfaceName}->{details};
+        my $hInterfaceDetails = $self->{'_hInterfaces'}->{$sInterfaceName}->{'details'};
         
-        my $iTotalBytes = $hInterfaceDetails->{rx_bytes} + $hInterfaceDetails->{tx_bytes};
-        my $iTotalFrames = $hInterfaceDetails->{rx_packets} + $hInterfaceDetails->{tx_packets};
-        printf " %-10s %-5s %18d %18d %12d %12d\n", "$hInterfaceDetails->{name}", "$hInterfaceDetails->{link_status}", "$iTotalBytes", "$iTotalFrames", "$hInterfaceDetails->{rx_errors}", "$hInterfaceDetails->{tx_errors}";
+        my $iTotalBytes = $hInterfaceDetails->{'rx_bytes'} + $hInterfaceDetails->{'tx_bytes'};
+        my $iTotalFrames = $hInterfaceDetails->{'rx_packets'} + $hInterfaceDetails->{'tx_packets'};
+        printf " %-10s %-5s %18d %18d %12d %12d\n", "$hInterfaceDetails->{'name'}", "$hInterfaceDetails->{'link_status'}", "$iTotalBytes", "$iTotalFrames", "$hInterfaceDetails->{'rx_errors'}", "$hInterfaceDetails->{'tx_errors'}";
     }
-    elsif ( !exists $self->{_hInterfaces}->{$sInterfaceName} ) { print "Interface not found!\n"; }
+    elsif ( !exists $self->{'_hInterfaces'}->{$sInterfaceName} ) { print "Interface not found!\n"; }
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return 1;
 }
 
@@ -270,11 +287,14 @@ sub PrintInterfaceBriefHeader
 {
     # This method will print the header for the "brief" output
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
     
     print "Status and Counters - Interface Counters\n";
     print "\n";
     printf " %-10s %-5s %18s %18s %12s %12s\n", "Port", "Link", "Total Bytes", "Total Frames", "Rx Errors", "Tx Errors";
     printf " %-10s %-5s %18s %18s %12s %12s\n", "----------", "-----", "------------------", "------------------", "------------", "------------";    
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub PrintAllInterfacesNormal
@@ -284,16 +304,19 @@ sub PrintAllInterfacesNormal
     #   string (display type);
     my $self = shift;
     my $sDisplayType = shift;
-
-    foreach (sort(keys(%{$self->{_hInterfaces}})))
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
+    
+    foreach (sort(keys(%{$self->{'_hInterfaces'}})))
     {
-        if ( $self->{_hInterfaces}->{$_}->{enabled} == 1 )
+        if ( $self->{'_hInterfaces'}->{$_}->{'enabled'} == 1 )
         {
             $self->GetInterfaceDetails($_);
             $self->PrintInterfaceDetails($_);            
         }
     }
     print "\n";
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub PrintAllInterfacesBrief
@@ -303,13 +326,16 @@ sub PrintAllInterfacesBrief
     #   string (display type);
     my $self = shift;
     my $sDisplayType = shift;
-
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
+    
     $self->PrintInterfaceBriefHeader();
-    foreach (sort(keys(%{$self->{_hInterfaces}})))
+    foreach (sort(keys(%{$self->{'_hInterfaces'}})))
     {
         $self->PrintInterfaceBrief($_);
     }
     print "\n";
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub ShowInterface 
@@ -321,7 +347,9 @@ sub ShowInterface
     my $self = shift;
     my $sDisplayType = shift;
     my $sInterfaceName = shift;
-
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
+    
     unless (defined $sDisplayType) { $sDisplayType = "normal"; }
 
     # We need a list of all valid interfaces for this system
@@ -337,9 +365,8 @@ sub ShowInterface
     }
     
     else { print "Interface not found!\n"; }
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
-
-
 
 
 return 1;

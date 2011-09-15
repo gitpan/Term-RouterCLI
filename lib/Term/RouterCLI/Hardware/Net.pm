@@ -23,11 +23,8 @@ use 5.8.8;
 use strict;
 use warnings;
 
-use parent qw(Exporter);
-our @EXPORT      = qw();
-our @EXPORT_OK   = qw();
-our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
 
 # Define our parent
 use parent qw(Term::RouterCLI::Hardware);

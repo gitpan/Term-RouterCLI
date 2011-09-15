@@ -22,18 +22,17 @@ package Term::RouterCLI::Log::Audit;
 use 5.8.8;
 use strict;
 use warnings;
-
-use parent qw(Exporter);;
-our @EXPORT      = qw();
-our @EXPORT_OK   = qw();
-our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
-
-# Define our parent
 use parent qw(Term::RouterCLI::Log);
-
-
+use Term::RouterCLI::Debugger;
+use Log::Log4perl;
 use POSIX qw(strftime);
+
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
+
+
+my $oDebugger = new Term::RouterCLI::Debugger();
+
 
 # TODO Work out how to rotate files and keep data longer instead of just pruning it
 
@@ -41,11 +40,13 @@ sub StartAuditLog
 {
     # This method is for starting the audit log. 
     my $self = shift;
-    print "--DEBUG $self->{_sName}-- ### Entering StartAuditLog ###\n" if ($self->{_iDebug} >= 1);
+    my $logger = $oDebugger->GetLogger($self);
+    
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
     my $retval = $self->ReadLogFile();
     
     if ($retval == 1) { $self->WriteExistingLogData(); }
-    print "--DEBUG $self->{_sName}-- ### Leaving StartAuditLog ###\n" if ($self->{_iDebug} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub RecordToLog
@@ -55,21 +56,22 @@ sub RecordToLog
 	#  hash_ref (prompt=>current prompt, commands=>command to be logged)
 	my $self = shift;
 	my $hParameter = shift;
-	 
-	print "--DEBUG $self->{_sName}-- ### Entering RecordToLog ###\n" if ($self->{_iDebug} >= 1);
+    my $logger = $oDebugger->GetLogger($self);
+    	 
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
 	
-    unless (defined $self->{_oFileHandle}) { $self->OpenFileHandle("A"); }
-    my $FILE = ${$self->{_oFileHandle}};
-    print "--DEBUG $self->{_sName}-- File Handle: $FILE\n" if ($self->{_iDebug} >= 3);
+    unless (defined $self->{'_oFileHandle'}) { $self->OpenFileHandle("A"); }
+    my $FILE = ${$self->{'_oFileHandle'}};
+    $logger->debug("$self->{'_sName'} - File Handle: $FILE");
     
     my $sTimeStamp = strftime "%Y-%b-%e %a %H:%M:%S", localtime;
     
     my $sOutput = "($sTimeStamp) \[$hParameter->{username}\@$hParameter->{tty}\] \[$hParameter->{prompt}\] $hParameter->{commands}";
-    print "--DEBUG $self->{_sName}-- sOutput: $sOutput\n" if ($self->{_iDebug} >= 3);
+    $logger->debug("$self->{'_sName'} - sOutput: $sOutput");
     
     print $FILE "$sOutput\n";
     $FILE->sync;
-    print "--DEBUG $self->{_sName}-- ### Leaving RecordToLog ###\n" if ($self->{_iDebug} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 return 1;

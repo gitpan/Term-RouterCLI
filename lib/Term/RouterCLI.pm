@@ -26,13 +26,7 @@ use 5.8.8;
 use strict;
 use warnings;
 
-use parent qw(Exporter);
-our @EXPORT      = qw();
-our @EXPORT_OK   = qw();
-our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
-$VERSION = eval $VERSION;
-
+use Term::RouterCLI::Debugger;
 use Term::RouterCLI::Auth;
 use Term::RouterCLI::Log::History;
 use Term::RouterCLI::Log::Audit;
@@ -47,6 +41,14 @@ use Config::General;
 use Sys::Syslog qw(:DEFAULT setlogsock);
 use POSIX qw(strftime);
 use Env qw(SSH_TTY);
+use Log::Log4perl;
+
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
+
+
+my $oDebugger = new Term::RouterCLI::Debugger();
+
 
 sub new
 {
@@ -54,16 +56,22 @@ sub new
     my $class = ref($pkg) || $pkg;  
     
     my $self = {};
-    $self->{_sName}                 = $pkg;        # Lets set the object name so we can use it in debugging
+    $self->{_sName}                             = $pkg;        # Lets set the object name so we can use it in debugging
+    bless ($self, $class);
     
-    # Objects
-    $self->{_oAuditLog}                         = undef;
-    $self->{_oConfig}                           = undef;
-    $self->{_oHistory}                          = undef;
-    $self->{_oTerm}                             = undef;
+    # Lets send any passed in arguments to the _init method
+    $self->_init(@_);
+    return $self;
+}
+
+sub _init    
+{
+    my $self = shift;
+    my %hParameters = @_;
     
     # Application data
     $self->{_sConfigFilename}                   = './etc/RouterCLI.conf';
+    $self->{_sLoggingConfigFilename}            = './etc/log4perl.conf';
     $self->{_sCurrentPrompt}                    = "Router> ";
     $self->{_sCurrentPromptLevel}               = '> ';
     $self->{_sActiveLoggedOnUser}               = "";
@@ -71,8 +79,61 @@ sub new
     $self->{_iExit}                             = 0;
     $self->{OUT}                                = undef;
 
-    # Data structure
+    # Options
+    $self->{blank_repeats_cmd}                  = 0;
+    $self->{backslash_continues_command}        = 1;        # This allows commands to be entered across multiple lines
+    $self->{display_summary_in_help}            = 1;
+    $self->{display_subcommands_in_help}        = 1;
+    $self->{suppress_completion_escape}         = 0;
+
+    # Text::Shellwords::Cursor module options
+    $self->{_sTokenCharacters}                  = '';
+    $self->{_iKeepQuotes}                       = 1;
+
+    # Objects
+    $self->{_oAuditLog}                         = new Term::RouterCLI::Log::Audit(   _oParent => $self, _sFilename => './logs/.cli-auditlog' );
+    $self->{_oHistory}                          = new Term::RouterCLI::Log::History( _oParent => $self, _sFilename => './logs/.cli-history' );
+    $self->{_oConfig}                           = new Term::RouterCLI::Config( _sFilename => $self->{_sConfigFilename} );
+    $self->{_oLoggerConfig}                     = new Term::RouterCLI::Config( _sFilename => $self->{_sLoggingConfigFilename} );
+    $self->{_oTerm}                             = new Term::ReadLine("$0");
+    $self->{_oParser} = Text::Shellwords::Cursor->new(
+        token_chars => $self->{_sTokenCharacters},
+        keep_quotes => $self->{_iKeepQuotes},
+        debug => 0,
+        error => sub { shift; $self->error(@_); },
+        );
+
+    # Create object for terminal and define some initial values
+    $self->{_oTerm}->MinLine(0);
+    $self->{_oTerm}->parse_and_bind("\"?\": complete");
+    $self->{_oTerm}->Attribs->{completion_function} = sub { _CompletionFunction($self, @_); };
+    $self->SetOutput("term");
+
+    # Setup Data structure
     $self->{_hFullCommandTree}                  = undef;    # Full command tree for active session
+    $self->RESET();
+
+    # Lets capture the tty that they used to connected to the CLI
+    if (defined $SSH_TTY) { $self->{_sTTYInUse} = $SSH_TTY; }
+
+    # Lets overwrite any defaults with values that are passed in
+    if (%hParameters)
+    {
+        foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
+    }
+}
+
+sub DESTROY
+{
+    my $self = shift;
+    $self = {};
+}
+
+sub RESET
+{
+    # This method will reset the data structure
+    my $self = shift;
+    # Data structure
     $self->{_hCommandTreeAtLevel}               = undef;    # Command tree at current level for searching for a command
     $self->{_hCommandDirectives}                = undef;    # Directives of command found at deepest level
     $self->{_aFullCommandName}                  = undef;    # Full name of deepest command
@@ -88,89 +149,12 @@ sub new
     $self->{_iTokenOffset}                      = 0;        # the character offset of the cursor in $tokno.
     $self->{_iArgumentNumber}                   = 0;        # The argument number containing the cursor
     $self->{_iNumberOfContinuedLines}           = 0;        # The number of lines that have been entered in wrapped line continue mode
-
     $self->{_sPreviousCommand}                  = ""; 
-    
-   
-    # Options
-    $self->{blank_repeats_cmd}                  = 0;
-    $self->{backslash_continues_command}        = 1;        # This allows commands to be entered across multiple lines
-    $self->{display_summary_in_help}            = 1;
-    $self->{display_subcommands_in_help}        = 1;
-    $self->{suppress_completion_escape}         = 0;
-
-    # Debug Options
-    $self->{_iDebugCompletion}                  = 0;
-    $self->{_iDebugFind}                        = 0;
-    $self->{_iDebugHelp}                        = 0;        # 1 = _GetCommandSummaries, 2 = 1 + _GetCommandSummary
-    $self->{_iDebugAuth}                        = 0; 
-    $self->{_iDebug}                            = 0;
-    
-    # Text::Shellwords::Cursor module options
-    $self->{_oParser}                           = undef;
-    $self->{_sTokenCharacters}                  = '';
-    $self->{_iKeepQuotes}                       = 1;
-    
-    # Lets overwrite any defaults with values that are passed in
-    my %hParameters = @_;
-    foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
-
-    bless ($self, $class); 
-
-    # Create sub objects
-    $self->{_oHistory}  = new Term::RouterCLI::Log::History( _oParent => $self, _sFilename => './logs/.cli-history', _iDebug => 0  );
-    $self->{_oAuditLog} = new Term::RouterCLI::Log::Audit(   _oParent => $self, _sFilename => './logs/.cli-auditlog', _iDebug => 0 );
-        
-    $self->{_oParser} = Text::Shellwords::Cursor->new(
-        token_chars => $self->{_sTokenCharacters},
-        keep_quotes => $self->{_iKeepQuotes},
-        debug => 0,
-        error => sub { shift; $self->error(@_); },
-        );
-
-    # Create object for terminal and define some initial values
-    $self->{_oTerm} = new Term::ReadLine("$0");
-    $self->{_oTerm}->MinLine(0);
-    $self->{_oTerm}->parse_and_bind("\"?\": complete");
-    $self->{_oTerm}->Attribs->{completion_function} = sub { _CompletionFunction($self, @_); };
-    $self->SetOutput("term");
-
-    # Lets capture the tty that they used to connected to the CLI
-    if (defined $SSH_TTY) { $self->{_sTTYInUse} = $SSH_TTY; }
-
-    return $self;
-}
-
-sub DESTROY
-{
-    my $self = shift;
-    $self = {};
-}
-
-sub RESET
-{
-    # This method will reset the data structure
-    my $self = shift;
-    # Data structure
-    $self->{_hCommandTreeAtLevel}               = undef;
-    $self->{_hCommandDirectives}                = undef;
-    $self->{_aFullCommandName}                  = undef;
-    $self->{_aCommandArguments}                 = undef;
-    # Helper values
-    $self->{_sStringToComplete}                 = "";    
-    $self->{_sCompleteRawline}                  = "";
-    $self->{_iStringToCompleteTextStartPosition} = 0;
-    $self->{_iCurrentCursorLocation}            = 0;
-    $self->{_aCommandTokens}                    = undef;
-    $self->{_iTokenNumber}                      = 0;
-    $self->{_iTokenOffset}                      = 0;
-    $self->{_iArgumentNumber}                   = 0;
-    $self->{_iNumberOfContinuedLines}           = 0;
 }
 
 
 # ----------------------------------------
-# Public Convenience Functions
+# Public Convenience Methods
 # ----------------------------------------
 sub EnableAuditLog          { shift->{_oAuditLog}->Enable();            }
 sub DisableAuditLog         { shift->{_oAuditLog}->Disable();           }
@@ -183,37 +167,25 @@ sub SetHistoryFilename      { shift->{_oHistory}->SetFilename(@_);      }
 sub SetHistoryFileLength    { shift->{_oHistory}->SetFileLength(@_);    }
 sub PrintHistory            { shift->{_oHistory}->PrintHistory(@_);     }
 
+sub SetConfigFilename       { shift->{_oConfig}->SetFilename(@_);       }
+sub LoadConfig              { shift->{_oConfig}->LoadConfig();          }
+sub SaveConfig              { shift->{_oConfig}->SaveConfig();          }
+sub SetLoggerConfigFilename { shift->{_oLoggerConfig}->SetFilename(@_); }
+sub LoadLoggerConfig        { shift->{_oLoggerConfig}->LoadConfig();    }
 
 
 # ----------------------------------------
-# Public Functions
+# Public Methods
 # ----------------------------------------
-sub SetConfigFilename
+sub StartLogger
 {
-    # This method will set the configuration file name
-    # Required:
-    #   hash_string (filename including path ex ./etc/RouterCLI.conf)
+    # This method will load the log4perl configuration file
     my $self = shift;
-    my $sFilename = shift;
-    if (defined $sFilename) { $self->{_sConfigFilename} = $sFilename }
-}
 
-sub LoadConfig
-{
-    # This method will load the current configuration in to memory
-    # Return:
-    #   hash_ref (configuration data)
-    my $self = shift;
-    
-    $self->{_oConfig} = new Term::RouterCLI::Config( _sFilename => $self->{_sConfigFilename} );
-    $self->{_oConfig}->LoadConfig();
-}
-
-sub SaveConfig
-{
-    # This method will save the current configuration out to a text file
-    my $self = shift;
-    $self->{_oConfig}->SaveConfig();
+## TODO move this method to the debugger, it should not be in the config class
+    $self->LoadLoggerConfig();
+    my $hLogConfig = $self->{_oLoggerConfig}->{_hConfigData};
+    Log::Log4perl::init($hLogConfig);
 }
 
 sub ClearScreen
@@ -248,21 +220,19 @@ sub SetLangDirectory
     #   string (directory path, full or relative)
     my $self = shift;
     my $parameter = shift;
-    if ($self->{_iDebug} > 0)
-    {
-        print "DEBUG SetLangDir: Entering SetLangDirectory\n";
-        print "DEBUG SetLangDir: Current Language Directory is: $self->{_oConfig}->{_hConfigData}->{system}->{language_directory}\n";
-        print "DEBUG SetLangDir: New Language Directory is: $parameter\n";
-    }
+    my $logger = $oDebugger->GetLogger($self);
+    
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
+    $logger->debug("$self->{'_sName'} - Current Language Directory is: $self->{_oConfig}->{_hConfigData}->{system}->{language_directory}");
+    $logger->debug("$self->{'_sName'} - New Language Directory is: $parameter");
+
     unless (defined $parameter) { return; }
     $parameter = $self->_ExpandTildes($parameter);
     $self->{_oConfig}->{_hConfigData}->{system}->{language_directory} = $parameter;
-    if ($self->{_iDebug} > 1)
-    {
-        print "DEBUG SetLangDir: Directory is now: $self->{_oConfig}->{_hConfigData}->{system}->{language_directory}\n";
-        print "DEBUG SetLangDir: Leaving SetLangDirectory\n";
-    }
 
+
+    $logger->debug("$self->{'_sName'} - Directory is now: $self->{_oConfig}->{_hConfigData}->{system}->{language_directory}");
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub StartCLI
@@ -286,7 +256,8 @@ sub StartCLI
     {
         $self->_ProcessCommands();
     }
-       
+    print "$Term::RouterCLI::Config::test\n";
+    
     # Close AuditLog and save command History
     $self->{_oHistory}->SaveCommandHistoryToFile() if ($self->{_oHistory}->{_bEnabled} == 1 );
     $self->{_oHistory}->CloseFileHandle();
@@ -387,6 +358,7 @@ sub _ProcessCommands
 {
     # This method prompts for and returns the results from a single command. Returns undef if no command was called.
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
 
     # Before we get started, lets clear out the data structure from the last command we processed
     $self->RESET();    
@@ -407,7 +379,11 @@ sub _ProcessCommands
         # back to this fucntion until the enter key is pressed
         # TODO we need to make sure the readline is returning a valid option with "?" is pressed
 		my $sNewline = $self->{_oTerm}->readline($sPrompt);
-        print "--DEBUG ProcessCommands-- Newline returned from readline: $sNewline\n" if ($self->{_iDebug} >= 1 && defined $sNewline);
+		
+		if (defined $sNewline)
+		{
+            $logger->debug("$self->{'_sName'} - Newline returned from readline: $sNewline");    
+		}
 
         # In the off chance that the readline module does not return anything, lets just print a new line and go on.
         unless (defined $sNewline) 
@@ -433,8 +409,7 @@ sub _ProcessCommands
 
         # If there is any white space at the start or end of the command lets remove it just to be safe 
         $sNewline =~ s/^\s+//g;  
-        $sNewline =~ s/\s+$//g;  
-
+        $sNewline =~ s/\s+$//g;
 
 
         # Search for a "\" at the end as a continue character and remove it along with any white space
@@ -448,11 +423,9 @@ sub _ProcessCommands
             if ($bContinued == 1) { $self->{_iNumberOfContinuedLines} = $self->{_iNumberOfContinuedLines} + $bContinued; }
         }
         
-        if ($self->{_iDebug} >= 1)
-        {
-            print "--DEBUG ProcessCommands-- _iNumberOfContinuedLines: $self->{_iNumberOfContinuedLines}\n" ;  
-            print "--DEBUG ProcessCommands-- bContinued: $bContinued\n";            
-        }
+        
+        $logger->debug("$self->{'_sName'} - _iNumberOfContinuedLines: $self->{_iNumberOfContinuedLines}");
+        $logger->debug("$self->{'_sName'} - bContinued: $bContinued");
 
         # Lets concatenate the lines together to form a single command
         if (($self->{backslash_continues_command} == 1) && ($self->{_iNumberOfContinuedLines} > 0))
@@ -463,7 +436,7 @@ sub _ProcessCommands
         else { $self->{_sCompleteRawline} = $sNewline; }
 
         # This will allow us to enter partial commands on the command line and have them completed
-        print "--DEBUG ProcessCommands-- _sCompleteRawline: $self->{_sCompleteRawline}\n" if ($self->{_iDebug} >= 1);        
+        $logger->debug("$self->{'_sName'} - _sCompleteRawline: $self->{_sCompleteRawline}");
         $self->_CompletionFunction("NONE", $self->{_sCompleteRawline}) unless ($self->{_sCompleteRawline} eq ""); 
         last; 
 	} 
@@ -586,6 +559,8 @@ sub _FindCommandInCommandTree
     #   _aCommandArguments:             The command's arguments (all remaining tokens after the command is found).
 
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
    
     my $aCommandTokens      = $self->{_aCommandTokens};
     my $hCommandTree        = $self->GetFullCommandTree();
@@ -595,20 +570,12 @@ sub _FindCommandInCommandTree
     my @aFullCommandName;
     my @aCommandArguments;
 
-    if ($self->{_iDebugFind} >= 1)
-    {
-        print "\n";
-        print "--DEBUG FIND 0-- ### Entering _FindCommandInCommandTree ###\n";
-        print "--DEBUG FIND 0-- Initial variable values\n";
-        print "--DEBUG FIND 0-- \thCommandTree: ";
-        foreach (keys(%$hCommandTree)) { print "$_, "; }
-        print "\n";
-        print "--DEBUG FIND 0-- \taCommandTokens: ";
-        foreach (@$aCommandTokens) { print "$_, "; }
-        print "\n";
-        print "--DEBUG FIND 0-- \tiCurrentToken: $iCurrentToken\n"; 
-        print "--DEBUG FIND 0-- \tiNumberOfTokens: $iNumberOfTokens\n"; 
-    }
+
+    $logger->debug("$self->{'_sName'} - --DEBUG FIND 0-- Initial variable values");
+    $logger->debug("$self->{'_sName'} - \thCommandTree: ", ${$oDebugger->DumpHashKeys($hCommandTree)});
+    $logger->debug("$self->{'_sName'} - \taCommandTokens: ", ${$oDebugger->DumpArray($aCommandTokens)});
+    $logger->debug("$self->{'_sName'} - \tiCurrentToken: $iCurrentToken");
+    $logger->debug("$self->{'_sName'} - \tiNumberOfTokens: $iNumberOfTokens\n");
 
     foreach my $sToken (@$aCommandTokens)
     {
@@ -623,41 +590,50 @@ sub _FindCommandInCommandTree
 #            $iMaxArgCheck = 1 if ((exists($self->{hCommandTree}->{$_}->{maxargs})) && ($iCurrentTokenInMaxArgCheck >= $self->{hCommandTree}->{$_}->{maxargs}));
 #            $iCurrentTokenInMaxArgCheck--;
 #        }
-#        print "--DEBUG FIND 1-- Maximum argument limit reached for token: $sToken\n" if ($self->{_iDebugFind} >= 1 && $iMaxArgCheck == 1);
+#        $logger->debug("$self->{'_sName'} - Maximum argument limit reached for token: $sToken'}");
 #        last if ($iMaxArgCheck == 1);
 
-
-        print "--DEBUG FIND 1-- Working with token ($iCurrentToken): $sToken\n" if ($self->{_iDebugFind} >= 1);
+        $logger->debug("$self->{'_sName'} - --DEBUG FIND 1--");
+        $logger->debug("$self->{'_sName'} - \tWorking with token ($iCurrentToken): $sToken");
         
         # If the token is NOT currently found then it might be a partial command or an abbreviation
         # so let try and expand the token if we can with what we know.  
+        my @aAllCommandsAtThisLevel;
         my @aCommandsAtThisLevel;
         my $iNumberOfCommandMatches = 0;
         if (!exists $hCommandTree->{$sToken})
         {
-            @aCommandsAtThisLevel = keys(%$hCommandTree);
+            @aAllCommandsAtThisLevel = keys(%$hCommandTree);
            
-            if ($self->{_iDebugFind} >= 1)
+            $logger->debug("$self->{'_sName'} - --DEBUG FIND 2--");
+            $logger->debug("$self->{'_sName'} - \taAllCommandsAtThisLevel: ", ${$oDebugger->DumpArray(\@aAllCommandsAtThisLevel)});
+            
+            # We need to grab just the command in this list that match the data/token that was typed in on the command line
+            @aAllCommandsAtThisLevel = grep {/^$sToken/} @aAllCommandsAtThisLevel;
+
+            $logger->debug("$self->{'_sName'} - \taAllCommandsAtThisLevel: ", ${$oDebugger->DumpArray(\@aAllCommandsAtThisLevel)});
+
+
+            # We need to stip out any commands that are "hidden" so they do not mess up the tab completion by the system
+            # thinking there is more options at that level then there really is. 
+            foreach (@aAllCommandsAtThisLevel)
             {
-                print "--DEBUG FIND 2-- aCommandsAtThisLevel: ";
-                foreach (@aCommandsAtThisLevel) { print "$_, "; }
-                print "\n";                
+                unless (exists $hCommandTree->{$_}->{hidden})
+                {
+                    push(@aCommandsAtThisLevel, $_);
+                }
             }
-            @aCommandsAtThisLevel = grep {/^$sToken/} @aCommandsAtThisLevel;
-            if ($self->{_iDebugFind} >= 1)
-            {
-                print "--DEBUG FIND 2-- aCommandsAtThisLevel: ";
-                foreach (@aCommandsAtThisLevel) { print "$_, "; }
-                print "\n";                
-            }          
+           
+            $logger->debug("$self->{'_sName'} - \taCommandsAtThisLevel: ", ${$oDebugger->DumpArray(\@aCommandsAtThisLevel)});
+           
             # If there is only one option in the array, then it must be the right one.  If not
             # then we have an ambiguous command situation.  Also we need to make sure that the
             # command is not set be excluded from completion or flagged as hidden.
             $iNumberOfCommandMatches = @aCommandsAtThisLevel;
-            print "--DEBUG FIND 2-- iNumberOfCommandMatches: $iNumberOfCommandMatches\n" if ($self->{_iDebugFind} >= 1);
+            $logger->debug("$self->{'_sName'} - \tiNumberOfCommandMatches: $iNumberOfCommandMatches");
             if (($iNumberOfCommandMatches == 1) && (!exists ($hCommandTree->{$aCommandsAtThisLevel[0]}->{exclude_from_completion})) && (!exists ($hCommandTree->{$aCommandsAtThisLevel[0]}->{hidden}))) 
             {
-                print "--DEBUG FIND 2-- Setting sToken to $aCommandsAtThisLevel[0]\n" if ($self->{_iDebugFind} >= 1); 
+                $logger->debug("$self->{'_sName'} - \tSetting sToken to $aCommandsAtThisLevel[0]");
                 $sToken = $aCommandsAtThisLevel[0]; 
             }
         }
@@ -665,7 +641,8 @@ sub _FindCommandInCommandTree
         # Lets loop through all synonyms to find the actual command and then update the token
         while (exists($hCommandTree->{$sToken}) && exists($hCommandTree->{$sToken}->{'alias'})) 
         {
-            print "--DEBUG FIND 3-- Checking aliases\n" if ($self->{_iDebugFind} >= 1);
+            $logger->debug("$self->{'_sName'} - --DEBUG FIND 3--");
+            $logger->debug("$self->{'_sName'} - \tChecking aliases");
             $sToken = $hCommandTree->{$sToken}->{'alias'};
         }
         
@@ -676,7 +653,8 @@ sub _FindCommandInCommandTree
         # when the rest of the default commands will match in the else statement below.
         if (exists $hCommandTree->{$sToken} )
         {
-            print "--DEBUG FIND 4-- Command $sToken found\n" if ($self->{_iDebugFind} >= 1);
+            $logger->debug("$self->{'_sName'} - --DEBUG FIND 4--");
+            $logger->debug("$self->{'_sName'} - \tCommand $sToken found");
 
             $hCommandDirectives = $hCommandTree->{$sToken};
             push(@aFullCommandName, $sToken);
@@ -695,15 +673,17 @@ sub _FindCommandInCommandTree
             # But we also need to make sure that a default command option was defined in the configuration file
             if (!defined $hCommandDirectives && exists $hCommandTree->{''} && $iNumberOfCommandMatches < 1) 
             {
-                print "--DEBUG FIND 5-- Default command found\n" if ($self->{_iDebugFind} >= 1);
+                $logger->debug("$self->{'_sName'} - --DEBUG FIND 5--");
+                $logger->debug("$self->{'_sName'} - \tDefault command found");
+
                 $hCommandDirectives = $hCommandTree->{''};
                 push(@aFullCommandName, $sToken);
 
                 # Since we are using the active token as a command, a default command, then lets not include that
                 # in the arguments.  Thus the +1
                 foreach ($iCurrentToken+1..$iNumberOfTokens-1) 
-                { 
-                    print "--DEBUG FIND 5-- Command to be added to arguments array is $aCommandTokens->[$_]\n" if ($self->{_iDebugFind} >= 1);
+                {
+                    $logger->debug("$self->{'_sName'} - Command to be added to arguments array is $aCommandTokens->[$_]"); 
                     unless ($aCommandTokens->[$_] eq "") { push(@aCommandArguments, $aCommandTokens->[$_]); } 
                 }
                 last;
@@ -712,10 +692,11 @@ sub _FindCommandInCommandTree
             {
                 # We need to grab the remaining tokens, once a command is not found, and add them to the 
                 # aCommandArguments array
-                print "--DEBUG FIND 6-- Command $sToken NOT found\n" if ($self->{_iDebugFind} >= 1);
+                $logger->debug("$self->{'_sName'} - --DEBUG FIND 6--");
+                $logger->debug("$self->{'_sName'} - \tCommand $sToken NOT found");
                 foreach ($iCurrentToken..$iNumberOfTokens-1) 
-                { 
-                    print "--DEBUG FIND 6-- Command to be added to arguments array is $aCommandTokens->[$_]\n" if ($self->{_iDebugFind} >= 1);
+                {
+                    $logger->debug("$self->{'_sName'} - Command to be added to arguments array is $aCommandTokens->[$_]"); 
                     unless ($aCommandTokens->[$_] eq "") { push(@aCommandArguments, $aCommandTokens->[$_]); } 
                 }
                 last;
@@ -723,30 +704,21 @@ sub _FindCommandInCommandTree
 
         }
 
-        if ($self->{_iDebugFind} >= 1)
+        $logger->debug("$self->{'_sName'} - --DEBUG FIND 7--");
+        $logger->debug("$self->{'_sName'} - \tVariables defined for iCurrentToken: $iCurrentToken");
+
+        $logger->debug("$self->{'_sName'} - \thCommandTree: ", ${$oDebugger->DumpHashKeys($hCommandTree)});
+        if (defined $hCommandDirectives)
         {
-            print "--DEBUG FIND 7-- Variables defined for iCurrentToken: $iCurrentToken\n";
-            print "--DEBUG FIND 7-- \thCommandTree: ";
-            foreach (keys(%$hCommandTree)) { print "$_, "; }
-            print "\n";
-            print "--DEBUG FIND 7-- \thCommandDirectives: ";
-            if (defined $hCommandDirectives) 
-            { 
-                print "$hCommandDirectives "; 
-                foreach (keys(%$hCommandDirectives)) { print "$_, "; }
-            }
-            else { print "NOT DEFINED "; }
-            print "\n";
-            print "--DEBUG FIND 7-- \taCommandTokens: ";
-            foreach (@$aCommandTokens) { print "$_, "; }
-            print "\n";
-            print "--DEBUG FIND 7-- \taFullCommandName: ";
-            foreach (@aFullCommandName) { print "$_, "; }
-            print "\n";            
-            print "--DEBUG FIND 7-- \taCommandArguments: ";
-            foreach (@aCommandArguments) { print "$_, "; }    
-            print "\n";
+            $logger->debug("$self->{'_sName'} - \thCommandDirectives: ", ${$oDebugger->DumpHashKeys($hCommandDirectives)});
         }
+        else
+        {
+            $logger->debug("$self->{'_sName'} - \thCommandDirectives: NOT DEFINED");
+        }
+        $logger->debug("$self->{'_sName'} - \taCommandTokens: ", ${$oDebugger->DumpArray($aCommandTokens)});
+        $logger->debug("$self->{'_sName'} - \taFullCommandName: ", ${$oDebugger->DumpArray(\@aFullCommandName)});
+        $logger->debug("$self->{'_sName'} - \taCommandArguments: ", ${$oDebugger->DumpArray(\@aCommandArguments)});
 
         $iCurrentToken++;
     }
@@ -762,24 +734,15 @@ sub _FindCommandInCommandTree
     $self->{_oParser}->parse_escape($self->{_aFullCommandName}) unless $self->{suppress_completion_escape};
     $self->{_oParser}->parse_escape($self->{_aCommandArguments}) unless $self->{suppress_completion_escape};
     
-    if ($self->{_iDebugFind} >= 1) 
-    {
-        print "--DEBUG FIND 8-- Final variables set by _FindCommandInCommandTree function\n";
-        print "--DEBUG FIND 8-- \t_hCommandTreeAtLevel: $self->{_hCommandTreeAtLevel}: ";
-        foreach (keys(%{$self->{_hCommandTreeAtLevel}})) { print "$_, "; }
-        print "\n";
-        print "--DEBUG FIND 8-- \t_hCommandDirectives: $self->{_hCommandDirectives}: ";
-        foreach (keys(%{$self->{_hCommandDirectives}})) { print "$_, "; }
-        print "\n";
-        print "--DEBUG FIND 8-- \t_aFullCommandName: $self->{_aFullCommandName}: ";
-        foreach (@{$self->{_aFullCommandName}}) { print "$_, "; }
-        print "\n";
-        print "--DEBUG FIND 8-- \t_aCommandArguments: $self->{_aCommandArguments}: ";
-        foreach (@{$self->{_aCommandArguments}}) { print "$_, "; }    
-        print "\n";
-    }
+    
+    $logger->debug("$self->{'_sName'} - --DEBUG FIND 8--");
+    $logger->debug("$self->{'_sName'} - \tFinal variables set by _FindCommandInCommandTree function");
+    $logger->debug("$self->{'_sName'} - \t_hCommandTreeAtLevel: ", ${$oDebugger->DumpHashKeys($self->{_hCommandTreeAtLevel})});
+    $logger->debug("$self->{'_sName'} - \t_hCommandDirectives: ", ${$oDebugger->DumpHashKeys($self->{_hCommandDirectives})});
+    $logger->debug("$self->{'_sName'} - \t_aFullCommandName: ", ${$oDebugger->DumpArray($self->{_aFullCommandName})});
+    $logger->debug("$self->{'_sName'} - \t_aCommandArguments: ", ${$oDebugger->DumpArray($self->{_aCommandArguments})});
 
-    print "--DEBUG FIND 0-- ### Leaving _FindCommandInCommandTree ###\n" if ($self->{_iDebugFind} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return 1;
 }
 
@@ -792,6 +755,9 @@ sub _RunCodeDirective
     #   $self->{_hCommandDirectives}    hash_ref
     #   $self->{_aCommandArguments}     array_ref
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
+    
     
     if(!$self->{_hCommandDirectives}) 
     {
@@ -830,7 +796,7 @@ sub _RunCodeDirective
         if ( $iSuccess == 1 ) { $self->_RunCommand(); }
     }
     else { $self->_RunCommand(); }
-    
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return;
 }
 
@@ -841,7 +807,10 @@ sub _AuthCommand
     #   1 = successful authentication
     #   0 = failed authentication
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
     my $OUT = $self->{OUT};
+
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
 
     my $bAuthStatus = 0;
     my $iAttempt = 1;
@@ -852,20 +821,14 @@ sub _AuthCommand
 
     my $oAuth = new Term::RouterCLI::Auth();
     
-
-    print "--DEBUG AUTH 0-- ### Entering _AuthCommand ###\n" if ($self->{_iDebugAuth} >= 1);
-
     my $iMaxAttempt = 3;
     if ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{max_attempts} ) { $iMaxAttempt = $self->{_oConfig}->{_hConfigData}->{auth}->{max_attempts}; }
     
     my $sAuthMode = "shared";
     if ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{mode} ) { $sAuthMode = $self->{_oConfig}->{_hConfigData}->{auth}->{mode}; }
     
-    print "--DEBUG AUTH 1-- iMaxAttempt: $iMaxAttempt\n" if ($self->{_iDebugAuth} >= 1);
-    print "--DEBUG AUTH 1-- sAuthMode: $sAuthMode\n" if ($self->{_iDebugAuth} >= 1);
-    
-    
-
+    $logger->debug("$self->{'_sName'} - iMaxAttempt: $iMaxAttempt");
+    $logger->debug("$self->{'_sName'} - sAuthMode: $sAuthMode");
     
     if ($sAuthMode eq "shared")
     {
@@ -879,8 +842,8 @@ sub _AuthCommand
         # in the configuration file
         if ( $$sStoredPassword eq "" )
         {
-            print "--DEBUG AUTH 2-- No password found for shared auth mode, exiting\n" if ($self->{_iDebugAuth} >= 1);
-            print "--DEBUG AUTH 2-- ### Leaving _AuthCommand ###\n" if ($self->{_iDebugAuth} >= 1);
+            $logger->debug("$self->{'_sName'} - No password found for shared auth mode, exiting");
+            $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
             # Return code 1 = "success"
             return 1;
         }
@@ -889,21 +852,21 @@ sub _AuthCommand
         {
             $self->ChangeActivePrompt("Password: ");
             my $sPassword = $oAuth->PromptForPassword();
-            print "--DEBUG AUTH 2-- sPassword: $$sPassword\n" if ($self->{_iDebugAuth} >= 1);
+            $logger->debug("$self->{'_sName'} - sPassword: $$sPassword");
                 
             my $sEncryptedPassword = $oAuth->EncryptPassword($iCryptID, $sPassword, $sStoredSalt);
-            print "--DEBUG AUTH 2-- sEncryptedPassword: $$sEncryptedPassword\n" if ($self->{_iDebugAuth} >= 1);
+            $logger->debug("$self->{'_sName'} - sEncryptedPassword: $$sEncryptedPassword");
     
             # TODO Need to provide a way for users to change the password
             if ($$sEncryptedPassword eq $$sStoredPassword) 
             {
-                print "--DEBUG AUTH 2-- Match Found\n" if ($self->{_iDebugAuth} >= 1);
+                $logger->debug("$self->{'_sName'} - Match Found");
                 $bAuthStatus = 1;
                 last;
             }
             if ($iAttempt == $iMaxAttempt) 
             {
-                print $OUT "Too many failed authentication attempts!\n\n";
+                $logger->debug("$self->{'_sName'} - Too many failed authentication attempts!");
                 $bAuthStatus = 0;
                 last;
             }
@@ -918,15 +881,15 @@ sub _AuthCommand
         {
             $self->ChangeActivePrompt("Username: ");
             my $sUsername = ${$oAuth->PromptForUsername()};
-            print "--DEBUG AUTH 3-- sUsername: $sUsername\n" if ($self->{_iDebugAuth} >= 1);
+            $logger->debug("$self->{'_sName'} - sUsername: $sUsername");
             
             $self->ChangeActivePrompt("Password: ");
             my $sPassword = $oAuth->PromptForPassword();
-            print "--DEBUG AUTH 3-- sPassword: $$sPassword\n" if ($self->{_iDebugAuth} >= 1);
+            $logger->debug("$self->{'_sName'} - sPassword: $$sPassword");
 
             unless ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{user}->{$sUsername} ) 
             { 
-                print "--DEBUG AUTH 3.1-- iAttempt: $iAttempt\n" if ($self->{_iDebugAuth} >= 1);
+                $logger->debug("$self->{'_sName'} - iAttempt: $iAttempt");
                 $iAttempt++;
                 next;
             }
@@ -940,7 +903,7 @@ sub _AuthCommand
             # We do not allow undefined passwords
             unless ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{user}->{$sUsername}->{password} ) 
             { 
-                print "--DEBUG AUTH 3.2-- iAttempt: $iAttempt\n" if ($self->{_iDebugAuth} >= 1);
+                $logger->debug("$self->{'_sName'} - iAttempt: $iAttempt");
                 $iAttempt++;
                 next;
             }  
@@ -948,11 +911,11 @@ sub _AuthCommand
             ($iCryptID, $sStoredSalt, $sStoredPassword) = $oAuth->SplitPasswordString(\$sStoredPassword);
 
             my $sEncryptedPassword = $oAuth->EncryptPassword($iCryptID, $sPassword, $sStoredSalt);
-            print "--DEBUG AUTH 3-- sEncryptedPassword: $$sEncryptedPassword\n" if ($self->{_iDebugAuth} >= 1);          
+            $logger->debug("$self->{'_sName'} - sEncryptedPassword: $$sEncryptedPassword");
             
             if ($$sEncryptedPassword eq $$sStoredPassword) 
             {
-                print "--DEBUG AUTH 3-- Match Found\n" if ($self->{_iDebugAuth} >= 1);
+                $logger->debug("$self->{'_sName'} - Match Found");
                 $self->{_sActiveLoggedOnUser} = $sUsername;
                 
                 # We need to clear and load the new command history file for this user
@@ -979,9 +942,7 @@ sub _AuthCommand
         }
     }
 
-
-
-    print "--DEBUG AUTH 0-- ### Leaving _AuthCommand ###\n" if ($self->{_iDebugAuth} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return $bAuthStatus;
 }
 
@@ -991,8 +952,10 @@ sub _RunCommand
     # Required:
     #   $self->{_hCommandDirectives}    hash_ref
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
     my $OUT = $self->{OUT};
 
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
     if (exists $self->{_hCommandDirectives}->{code}) 
     {
         my $oCode = $self->{_hCommandDirectives}->{code};
@@ -1017,7 +980,7 @@ sub _RunCommand
             $self->error("The $sCommandName command has no code directive to call!\n"); 
         }
     }
-
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return;
 }
 
@@ -1035,27 +998,22 @@ sub _CompletionFunction
     $self->{_sCompleteRawline} = shift; 
     $self->{_iStringToCompleteTextStartPosition} = shift;
     my $OUT = $self->{OUT};
+    my $logger = $oDebugger->GetLogger($self);
 
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
 
     # Lets figure out where the cursor is currently at and thus how long the original line is
     $self->{_iCurrentCursorLocation} = $self->{_oTerm}->Attribs->{'point'};
 
-    if ($self->{_iDebugCompletion} >= 1)
-    {
-        print "\n";
-        print "--DEBUG Complete 0-- ### Entering _CompletionFunction ###\n";
-        print "--DEBUG Complete 0-- Values passed in to the function and computed from those values\n";
-        print "--DEBUG Complete 0-- _sStringToComplete: $self->{_sStringToComplete}\n" if defined $self->{_sStringToComplete};
-        print "--DEBUG Complete 0-- _sCompleteRawline: $self->{_sCompleteRawline}\n" if defined $self->{_sCompleteRawline};  
-        print "--DEBUG Complete 0-- _iStringToCompleteTextStartPosition: $self->{_iStringToCompleteTextStartPosition}\n" if defined $self->{_iStringToCompleteTextStartPosition}; 
-        print "--DEBUG Complete 0-- _iCurrentCursorLocation: $self->{_iCurrentCursorLocation}\n";
-        print "\n";
-    }
-        
+    $logger->debug("$self->{'_sName'} - Values passed in to the function and computed from those values");
+    $logger->debug("$self->{'_sName'} - \t_sStringToComplete: $self->{_sStringToComplete}");
+    $logger->debug("$self->{'_sName'} - \t_sCompleteRawline: $self->{_sCompleteRawline}");
+    $logger->debug("$self->{'_sName'} - \t_iStringToCompleteTextStartPosition: $self->{_iStringToCompleteTextStartPosition}");
+    $logger->debug("$self->{'_sName'} - \t_iCurrentCursorLocation: $self->{_iCurrentCursorLocation}");
+
     # If there is any white space at the start or end of the command lets remove it just to be safe 
     $self->{_sCompleteRawline} =~ s/^\s+//g;  
     $self->{_sCompleteRawline} =~ s/\s+$//g; 
-
 
 
     # Parse the _sCompleteRawline in to a series of command line tokens
@@ -1066,19 +1024,13 @@ sub _CompletionFunction
         fixclosequote=>1
     );
 
-    if ($self->{_iDebugCompletion} >= 1) 
-    {
-        print "--DEBUG Complete 1-- Data returned from the parser function\n";
-        print "--DEBUG Complete 1-- _aCommandTokens: ";
-        foreach (@{$self->{_aCommandTokens}}) {print "$_, ";}
-        print "\n";        
-        print "--DEBUG Complete 1-- _iTokenNumber: $self->{_iTokenNumber}\n" if (defined $self->{_iTokenNumber});
-        print "--DEBUG Complete 1-- _iTokenOffset: $self->{_iTokenOffset}\n" if (defined $self->{_iTokenOffset});
-        print "\n";
-    }
+    $logger->debug("$self->{'_sName'} - Data returned from the parser function");
+    $logger->debug("$self->{'_sName'} - \t_aCommandTokens: ", ${$oDebugger->DumpArray($self->{_aCommandTokens})});
+    $logger->debug("$self->{'_sName'} - \t_iTokenNumber: $self->{_iTokenNumber}");
+    $logger->debug("$self->{'_sName'} - \t_iTokenOffset: $self->{_iTokenOffset}");
     
     # Punt if nothing comes back from the parser
-    unless (defined($self->{_aCommandTokens})) { print "ERROR 1001\n"; return; }
+    unless (defined($self->{_aCommandTokens})) { $logger->fatal("ERROR 1001"); return; }
 
     # Lets try and find the command in the command tree
     $self->_FindCommandInCommandTree();
@@ -1097,7 +1049,7 @@ sub _CompletionFunction
     #   3c) The values need to be passed to a method defined in the args directive to see if they are commands
     #   3d) There was nothing entered on the command line
     my $iNumberOfArguments = @{$self->{_aCommandArguments}};
-    print "--DEBUG Complete 3-- iNumberOfArguments: $iNumberOfArguments\n" if ($self->{_iDebugCompletion} >= 1);
+    $logger->debug("$self->{'_sName'} - iNumberOfArguments: $iNumberOfArguments");
     if ($iNumberOfArguments > 0)
     {
         # Use Cases 2 and 3
@@ -1106,12 +1058,12 @@ sub _CompletionFunction
         @aCommandsThatMatchAtThisLevel = grep {/^$self->{_aCommandArguments}->[0]/ } @aCommandsThatMatchAtThisLevel;
         my $iNumberOfCommandsThatMatchAtThisLevel = @aCommandsThatMatchAtThisLevel;
         
-        print "--DEBUG Complete 4-- Use Case 2 and 3\n" if ($self->{_iDebugCompletion} >= 1);
-        print "--DEBUG Complete 4-- iNumberOfCommandsThatMatchAtThisLevel: $iNumberOfCommandsThatMatchAtThisLevel\n" if ($self->{_iDebugCompletion} >= 1);
+        $logger->debug("$self->{'_sName'} - Entering Use Case 2 and 3");
+        $logger->debug("$self->{'_sName'} - \tiNumberOfCommandsThatMatchAtThisLevel: $iNumberOfCommandsThatMatchAtThisLevel");
         if ($iNumberOfCommandsThatMatchAtThisLevel > 1)
         {
             # Use Case 2: There was more than one match found.  So we need to print out the options for just these commmands
-            print "--DEBUG Complete 4-- Use Case 2\n" if ($self->{_iDebugCompletion} >= 1);
+            $logger->debug("$self->{'_sName'} - Entering Use Case 2");
             $self->_RewriteLine();
 
             # Print out possible options for the matches that were found
@@ -1128,13 +1080,12 @@ sub _CompletionFunction
             # command tree so the arguments must truely be arguments or they are incorrectly entered commands.  
             # But before we can know this for sure, lets check for an args directive.
             
-            print "--DEBUG Complete 4-- Use Case 3\n" if ($self->{_iDebugCompletion} >= 1);
+            $logger->debug("$self->{'_sName'} - Entering Use Case 3");
             if (exists $self->{_hCommandDirectives}->{args} && !exists $self->{_hCommandDirectives}->{minargs})
             {
                 # Use Case 3c: This is for something like "help" or "no" that needs to restart the completion at the
                 # beginning of the command tree.  So we will need to check the args directive
-                print "--DEBUG Complete 4-- Use Case 3c\n" if ($self->{_iDebugCompletion} >= 1);
-                
+                $logger->debug("$self->{'_sName'} - Entering Use Case 3c");
 
                 if (ref($self->{_hCommandDirectives}->{args}) eq 'CODE') 
                 {
@@ -1147,14 +1098,14 @@ sub _CompletionFunction
             elsif (!exists $self->{_hCommandDirectives}->{args} && (exists $self->{_hCommandDirectives}->{minargs} && $self->{_hCommandDirectives}->{minargs} > 0))
             {
                 # Use Case 3b: The arguments are in fact arguments
-                print "--DEBUG Complete 4-- Use Case 3b\n" if ($self->{_iDebugCompletion} >= 1);
+                $logger->debug("$self->{'_sName'} - Entering Use Case 3b");
                 $self->_RewriteLine();
                 return;
             }
             else
             {
                 # Use Case 3a: The command was typed in wrong
-                print "--DEBUG Complete 4-- Use Case 3a\n" if ($self->{_iDebugCompletion} >= 1);
+                $logger->debug("$self->{'_sName'} - Entering Use Case 3a");
                 $self->_RewriteLine();
             }
             
@@ -1165,7 +1116,7 @@ sub _CompletionFunction
         if (!exists $self->{_aFullCommandName}->[0] || $self->{_aFullCommandName}->[0] eq "")
         {
             # Use Case 3d: There was nothing entered on the command line.  So we need to print out all options at that level
-            print "--DEBUG Complete 4-- Use Case 3d\n" if ($self->{_iDebugCompletion} >= 1);
+            $logger->debug("$self->{'_sName'} - Entering Use Case 3d");
             $self->_RewriteLine();
 
             # Print out possible options for the matches that were found
@@ -1179,7 +1130,7 @@ sub _CompletionFunction
         else
         {
             # Use Case 1: There were no arguments found, so everything is a full blown command
-            print "--DEBUG Complete 4-- Use Case 1\n" if ($self->{_iDebugCompletion} >= 1);
+            $logger->debug("$self->{'_sName'} - Entering Use Case 1");
             $self->_RewriteLine();            
         }
     }
@@ -1200,12 +1151,11 @@ sub _CompletionFunction
     my $iNumberOfCommands = @{$self->{_aFullCommandName}};
     if ($self->{_sStringToComplete} eq "" && $iNumberOfCommands > 0)
     {
-        print "--DEBUG Complete 4-- Lets get the data from _GetCommandSummaries\n" if ($self->{_iDebugCompletion} >= 1);
+        $logger->debug("$self->{'_sName'} - Lets get the data from _GetCommandSummaries");
         print $OUT $self->_GetCommandSummaries(); 
     }
 
-
-    print "--DEBUG Complete 0-- ### Leaving _CompletionFunction ###\n" if ($self->{_iDebugCompletion} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return;
 }
 
@@ -1214,8 +1164,8 @@ sub _RewriteLine
     # This method will do the actual rewriting of the command line during command completion
     # Required:
     my $self = shift;
-    
-    print "\n--DEBUG RewriteLine 0-- ### Entering _RewriteLine Function ###\n" if ($self->{_iDebugCompletion} >= 1);
+    my $logger = $oDebugger->GetLogger($self);
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
     
     my ($sCommands, $iCommandsLength) = $self->_GetFullCommandName();
     my ($sArguments, $iArgumentLength) = $self->_GetFullArgumentsName();
@@ -1224,21 +1174,18 @@ sub _RewriteLine
     # We need to set the cursor to the end of the new fully completed line
     my $iNewPointLocation = $iCommandsLength + $iArgumentLength;
         
-    if ($self->{_iDebugCompletion} >= 1)
-    {
-        print "--DEBUG RewriteLine 1-- iCurrentPoint: $iCurrentPoint\n";
-        print "--DEBUG RewriteLine 1-- sCommands: $sCommands\n";
-        print "--DEBUG RewriteLine 1-- iCommandsLength: $iCommandsLength\n";
-        print "--DEBUG RewriteLine 1-- sArguments: $sArguments\n";
-        print "--DEBUG RewriteLine 1-- iArgumentLength: $iArgumentLength\n";        
-        print "--DEBUG RewriteLine 1-- iNewPointLocation: $iNewPointLocation\n";  
-    }
-
+        
+    $logger->debug("$self->{'_sName'} - iCurrentPoint: $iCurrentPoint");
+    $logger->debug("$self->{'_sName'} - sCommands: $sCommands");
+    $logger->debug("$self->{'_sName'} - iCommandsLength: $iCommandsLength");
+    $logger->debug("$self->{'_sName'} - sArguments: $sArguments");
+    $logger->debug("$self->{'_sName'} - iArgumentLength: $iArgumentLength");
+    $logger->debug("$self->{'_sName'} - iNewPointLocation: $iNewPointLocation");
+    
     $self->{_oTerm}->Attribs->{'line_buffer'} = $sCommands . $sArguments;
     $self->{_oTerm}->Attribs->{'point'} = $iNewPointLocation;
 
-
-    print "--DEBUG RewriteLine 0-- ### Leaving _RewriteLine Function ###\n" if ($self->{_iDebugCompletion} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 

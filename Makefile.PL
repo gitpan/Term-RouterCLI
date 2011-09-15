@@ -1,4 +1,4 @@
-use 5.010001;
+use 5.8.8;
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
@@ -10,9 +10,10 @@ WriteMakefile(
             'Config::General'           => 2.50,
             'Digest::SHA'               => 5.62,
             'Env'                       => 1.00,
-            'FileHandle'                => 2.02,
+            'FileHandle'                => 2.01,
+            'Log::Log4perl'             => 1.33,
             'parent'                    => 0.221,
-            'POSIX'                     => 1.17,
+            'POSIX'                     => 1.09,
             'Sys::Syslog'               => 0.29,
             'Term::ReadKey'             => 2.30,
             'Term::ReadLine::Gnu'       => 1.20,

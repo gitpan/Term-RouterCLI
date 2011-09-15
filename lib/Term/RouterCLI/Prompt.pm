@@ -22,12 +22,15 @@ package Term::RouterCLI::Prompt;
 use 5.8.8;
 use strict;
 use warnings;
+use Log::Log4perl;
 
 use parent qw(Exporter);
 our @EXPORT      = qw();
 our @EXPORT_OK   = qw( SetPrompt GetPrompt SetPromptLevel GetPromptLevel ClearPromptOrnaments ChangeActivePrompt);
 our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
+
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
 
 
 
@@ -45,15 +48,15 @@ sub SetPrompt
     my $parameter = shift;
     
     # If the hostname is not found in the configuration file, lets set a default
-    if (defined $parameter) { $self->{_sCurrentPrompt} = "$parameter" . "$self->{_sCurrentPromptLevel}"; } 
-    else { $self->{_sCurrentPrompt} = "Router" . "$self->{_sCurrentPromptLevel}"; }
+    if (defined $parameter) { $self->{'_sCurrentPrompt'} = "$parameter" . "$self->{'_sCurrentPromptLevel'}"; } 
+    else { $self->{'_sCurrentPrompt'} = "Router" . "$self->{'_sCurrentPromptLevel'}"; }
 }
 
 sub GetPrompt
 {
     # This method will return the current prompt value
     my $self = shift;
-    return $self->{_sCurrentPrompt};
+    return $self->{'_sCurrentPrompt'};
 }
 
 sub SetPromptLevel
@@ -66,24 +69,24 @@ sub SetPromptLevel
     
     # If this method is called from a command tree option, then it will have the data structure hashref 
     # as the first argument. So we need to check for that just to be safe. 
-    if (ref($parameter) eq 'HASH') { $parameter = $parameter->{aCommandArguments}->[0]; }
+    if (ref($parameter) eq 'HASH') { $parameter = $parameter->{'aCommandArguments'}->[0]; }
     
     unless (defined $parameter) { $parameter = "> "; }
-    $self->{_sCurrentPromptLevel} = $parameter;
+    $self->{'_sCurrentPromptLevel'} = $parameter;
 }
 
 sub GetPromptLevel
 {
     # This method will return the current problem level indicator
     my $self = shift;
-    return $self->{_sCurrentPromptLevel};
+    return $self->{'_sCurrentPromptLevel'};
 }
 
 sub ClearPromptOrnaments
 {
     # This method will turn off the prompt ornamentation aka underlining
     my $self = shift;
-    $self->{_oTerm}->Attribs->ornaments(0);
+    $self->{'_oTerm'}->Attribs->ornaments(0);
 }
 
 sub ChangeActivePrompt
@@ -97,12 +100,12 @@ sub ChangeActivePrompt
     my $parameter = shift;
     
     # This line was needed for post tab completion so that it would display the prompt 
-    $self->{_oTerm}->rl_redisplay();
-    $self->{_oTerm}->rl_set_prompt($parameter);
+    $self->{'_oTerm'}->rl_redisplay();
+    $self->{'_oTerm'}->rl_set_prompt($parameter);
     # This is needed so that when we redisplay, we do not show the current line buffer
-    $self->{_oTerm}->Attribs->{'line_buffer'} = "";
-    $self->{_oTerm}->rl_on_new_line();
-    $self->{_oTerm}->rl_redisplay();
+    $self->{'_oTerm'}->Attribs->{'line_buffer'} = "";
+    $self->{'_oTerm'}->rl_on_new_line();
+    $self->{'_oTerm'}->rl_redisplay();
 }
 
 

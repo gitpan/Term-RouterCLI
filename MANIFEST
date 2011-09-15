@@ -6,12 +6,14 @@ MANIFEST
 README
 t/auth_encrypt_password.t
 t/completion.t
-t/default_completion.t
+t/completion_default.t
+t/completion_hidden.t
 t/findcommand.t
 lib/Term/RouterCLI.pm
 lib/Term/RouterCLI/Auth.pm
 lib/Term/RouterCLI/CommandTree.pm
 lib/Term/RouterCLI/Config.pm
+lib/Term/RouterCLI/Debugger.pm
 lib/Term/RouterCLI/Hardware.pm
 lib/Term/RouterCLI/Hardware/Net.pm
 lib/Term/RouterCLI/Hardware/Net/Interface.pm

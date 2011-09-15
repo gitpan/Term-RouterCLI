@@ -22,23 +22,22 @@ package Term::RouterCLI::Log::History;
 use 5.8.8;
 use strict;
 use warnings;
-
-use parent qw(Exporter);
-our @EXPORT      = qw();
-our @EXPORT_OK   = qw();
-our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
-
-# Define our parent
 use parent qw(Term::RouterCLI::Log);
+use Term::RouterCLI::Debugger;
+use Log::Log4perl;
 
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
+
+
+my $oDebugger = new Term::RouterCLI::Debugger();
 
 
 sub ClearHistory
 {
     # This method will clear the history out of the terminal.
     my $self = shift;
-    $self->{_oParent}->{_oTerm}->clear_history();
+    $self->{'_oParent'}->{_oTerm}->clear_history();
     $self->ClearExistingLogData();
 }
 
@@ -48,7 +47,7 @@ sub GetHistory
     # Return:
     #   array_ref(command history)
     my $self = shift;
-    my @aHistoryCommandBuffer = $self->{_oParent}->{_oTerm}->GetHistory();
+    my @aHistoryCommandBuffer = $self->{'_oParent'}->{_oTerm}->GetHistory();
     return \@aHistoryCommandBuffer;
 }
 
@@ -56,41 +55,43 @@ sub LoadCommandHistoryFromFile
 {
     # This method will read in the content of the local history file if it exists
     my $self = shift;
-    print "--DEBUG $self->{_sName}-- ### Entering LoadCommandHistoryFromFile ###\n" if ($self->{_iDebug} >= 1);
+    my $logger = $oDebugger->GetLogger($self);
+    
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
     
     $self->ReadLogFile();
 
-    foreach (@{$self->{_aCurrentLogData}}) 
+    foreach (@{$self->{'_aCurrentLogData'}}) 
     {
-        print "--DEBUG $self->{_sName}-- _aCurrentLogData: $_\n" if ($self->{_iDebug} >= 5);
+        $logger->debug("$self->{'_sName'} - _aCurrentLogData: $_");
         chomp();
         next unless /\S/;
-        $self->{_oParent}->{_oTerm}->addhistory($_);
+        $self->{'_oParent'}->{_oTerm}->addhistory($_);
     }
-    print "--DEBUG $self->{_sName}-- ### Leaving LoadCommandHistoryFromFile ###\n" if ($self->{_iDebug} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub SaveCommandHistoryToFile
 {
     # This method will save the current command history to a text file or other sources as defined
     my $self = shift;
-    print "--DEBUG $self->{_sName}-- ### Entering SaveCommandHistoryToFile ###\n" if ($self->{_iDebug} >= 1);
-
-    return unless ((defined $self->{_sFilename}) && ($self->{_iFileLength} > 0));
-    return unless $self->{_oParent}->{_oTerm}->can('GetHistory');
+    my $logger = $oDebugger->GetLogger($self);
     
-    $self->{_aCurrentLogData} = $self->GetHistory();
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
+
+    return unless ((defined $self->{'_sFilename'}) && ($self->{'_iFileLength'} > 0));
+    return unless $self->{'_oParent'}->{_oTerm}->can('GetHistory');
+    
+    $self->{'_aCurrentLogData'} = $self->GetHistory();
     
     # Let store the current size of the log data
     $self->SetCurrentLogSize();
     
-    if ($self->{_iDebug} >= 5)
-    {
-        foreach (@{$self->{_aCurrentLogData}}) { print "--DEBUG $self->{_sName}-- _aCurrentLogData: $_\n"; }
-    }
+    
+    $logger->debug("$self->{'_sName'} - _aCurrentLogData:\n", ${$oDebugger->DumpArray($self->{'_aCurrentLogData'})});
     
     $self->WriteExistingLogData();
-    print "--DEBUG $self->{_sName}-- ### Leaving SaveCommandHistoryToFile ###\n" if ($self->{_iDebug} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub PrintHistory
@@ -98,10 +99,12 @@ sub PrintHistory
     # This method will print out the command history from the terminal.  You can pass in an 
     # integer to tell it how many lines of history to print out.
     my $self = shift;
+    my $logger = $oDebugger->GetLogger($self);
+
     my $iNumberOfLinesToPrint = -1;
     
     # Lets grab the number of lines to print from the passed in values, but only if it is an integer
-    my $parameter = $self->{_oParent}->{_aCommandArguments}->[0];
+    my $parameter = $self->{'_oParent'}->{_aCommandArguments}->[0];
     if((defined $parameter) && ($parameter =~ /^(\d+)$/)) 
     {
         $iNumberOfLinesToPrint = $1;

@@ -4,7 +4,7 @@
       "Bret Jordan"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.58, CPAN::Meta::Converter version 2.110930001",
+   "generated_by" : "ExtUtils::MakeMaker version 6.59, CPAN::Meta::Converter version 2.112150",
    "license" : [
       "unknown"
    ],
@@ -35,8 +35,9 @@
             "Config::General" : "2.5",
             "Digest::SHA" : "5.62",
             "Env" : "1",
-            "FileHandle" : "2.02",
-            "POSIX" : "1.17",
+            "FileHandle" : "2.01",
+            "Log::Log4perl" : "1.33",
+            "POSIX" : "1.09",
             "Sys::Syslog" : "0.29",
             "Term::ReadKey" : "2.3",
             "Term::ReadLine::Gnu" : "1.2",
@@ -48,5 +49,5 @@
       }
    },
    "release_status" : "testing",
-   "version" : "0.99_13"
+   "version" : "0.99_15"
 }

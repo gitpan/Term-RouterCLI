@@ -20,14 +20,13 @@
 #
 package UserExec::Show;
 
-
 use strict;
 use Term::RouterCLI::Languages;
 use Term::RouterCLI::Hardware::Net::Interface;
 
 
 
-sub UserExecShowCommands {
+sub CommandTree {
     my $self = shift;
     my $lang = new Term::RouterCLI::Languages( _oParent => $self );
     my $strings = $lang->LoadStrings("UserExec/Show");

@@ -25,7 +25,7 @@ use UserExec::Show;
 
 
 
-sub EnableShowCommands {
+sub CommandTree {
     my $self = shift;
     my $lang = new Term::RouterCLI::Languages( _oParent => $self );
     my $strings = $lang->LoadStrings("Enable/Show");
@@ -34,10 +34,10 @@ sub EnableShowCommands {
     $hash_ref = {};
 
     # These commands should only show up in the enable mode show menu
-    my $hash_ref_userexec = &UserExec::Show::UserExecShowCommands($self);
+    my $hash_ref_additional = &UserExec::Show::CommandTree($self);
 
     # Lets makes sure that the Enable commands overright the UserExec commands if they are in duplicate
-    my %hash = (%$hash_ref_userexec, %$hash_ref);
+    my %hash = (%$hash_ref_additional, %$hash_ref);
     return(\%hash);
 }
 

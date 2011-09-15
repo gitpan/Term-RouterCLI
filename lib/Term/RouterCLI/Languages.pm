@@ -22,12 +22,14 @@ package Term::RouterCLI::Languages;
 use 5.8.8;
 use strict;
 use warnings;
+use Term::RouterCLI::Debugger;
+use Log::Log4perl;
 
-use parent qw(Exporter);
-our @EXPORT      = qw();
-our @EXPORT_OK   = qw();
-our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
+
+
+my $oDebugger = new Term::RouterCLI::Debugger();
 
 
 sub new
@@ -36,16 +38,11 @@ sub new
     my $class = ref($pkg) || $pkg;  
 
     my $self = {};
-    $self->{_oParent}           = undef;
-    $self->{_hValidLanguages}   = { 'en_us' => 1, 'fr' => 1 };
-    $self->{_sDirectoryTree}    = undef;
-    $self->{_iDebugLang}        = 0;
-        
-    # Lets overwrite any defaults with values that are passed in
-    my %hParameters = @_;
-    foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
-
+    $self->{'_sName'}               = $pkg;         # Lets set the object name so we can use it in debugging
     bless ($self, $class);
+
+    # Lets send any passed in arguments to the _init method
+    $self->_init(@_);
     return $self;
 }
 
@@ -55,14 +52,34 @@ sub DESTROY
     $self = {};
 }
 
+sub _init
+{
+    my $self = shift;
+    my %hParameters = @_;
 
+    $self->{'_oParent'}           = undef;
+    $self->{'_hValidLanguages'}   = { 'en_us' => 1, 'fr' => 1 };
+    $self->{'_sDirectoryTree'}    = undef;
+
+    # Lets overwrite any defaults with values that are passed in
+    if (%hParameters)
+    {
+        foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
+    }
+}
+
+
+
+# ----------------------------------------
+# Public Methods
+# ----------------------------------------
 sub GetLanguageDirectory
 {
     # This method will return the current language directory as defined in the configuration file
     my $self = shift;
     
-    unless (exists $self->{_oParent}->{_oConfig}->{_hConfigData}->{system}->{language_directory}) { return ('./lang/'); }
-    return ($self->{_oParent}->{_oConfig}->{_hConfigData}->{system}->{language_directory});
+    unless (exists $self->{'_oParent'}->{'_oConfig'}->{'_hConfigData'}->{'system'}->{'language_directory'}) { return ('./lang/'); }
+    return ($self->{'_oParent'}->{'_oConfig'}->{'_hConfigData'}->{'system'}->{'language_directory'});
 }
 
 sub AddValidLanguage
@@ -72,10 +89,11 @@ sub AddValidLanguage
     #   hash_ref (valid languages where keys are ISO values)
     my $self = shift;
     my $hParameter = shift;
-    print "--DEBUG Lang-- ### Entering AddValidLanguage ###\n" if ($self->{_iDebugLang} >= 1);
-
-    foreach (keys (%$hParameter)) { $self->{_hValidLanguages}->{$_} = $hParameter->{$_}; }
-    print "--DEBUG Lang-- ### Leaving AddValidLanguage ###\n" if ($self->{_iDebugLang} >= 1);
+    my $logger = $oDebugger->GetLogger($self);
+    
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
+    foreach (keys (%$hParameter)) { $self->{'_hValidLanguages'}->{$_} = $hParameter->{$_}; }
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub SetLanguage
@@ -83,26 +101,23 @@ sub SetLanguage
     # This method will set the current language
     my $self = shift;
     my $lang = shift;
-    
-    if ($self->{_iDebugLang} >= 1)
-    {
-        print "--DEBUG Lang-- ### Entering SetLanguage ###\n";
-        print "--DEBUG Lang-- lang: $lang\n";
-        print "--DEBUG Lang-- _hValidLanguages: ";
-        foreach (keys(%{$self->{_hValidLanguages}})) {print "$_, ";}
-        print "\n";        
-    }
+    my $logger = $oDebugger->GetLogger($self);
+
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
+    $logger->debug("$self->{'_sName'} - ", "lang: $lang");
+    $logger->debug("$self->{'_sName'} - ", "_hValidLanguages:\n", ${$oDebugger->DumpHashKeys($self->{'_hValidLanguages'})});        
+
 
     
-    unless (defined $lang) { $lang = $self->{_oParent}->{_aCommandArguments}->[0]; }
-    print "--DEBUG Lang-- recieved lang: $lang\n" if ($self->{_iDebugLang} >= 1);
+    unless (defined $lang) { $lang = $self->{'_oParent'}->{'_aCommandArguments'}->[0]; }
+    $logger->debug("$self->{'_sName'} - ", "recieved lang: $lang");
     
     # If the language is not found for this parameter, then lets reset to US english
-    unless (exists ($self->{_hValidLanguages}->{$lang})) { $lang = "en_us"; }
-    print "--DEBUG Lang-- using lang: $lang\n" if ($self->{_iDebugLang} >= 1);
+    unless (exists ($self->{'_hValidLanguages'}->{$lang})) { $lang = "en_us"; }
+    $logger->debug("$self->{'_sName'} - ", "using lang: $lang");
     
-    $self->{_oParent}->{_oConfig}->{_hConfigData}->{language} = $lang;
-    print "--DEBUG Lang-- ### Leaving SetLanguage ###\n" if ($self->{_iDebugLang} >= 1);
+    $self->{'_oParent'}->{'_oConfig'}->{'_hConfigData'}->{'language'} = $lang;
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub LoadStrings
@@ -114,40 +129,42 @@ sub LoadStrings
     #   hash_ref (hash of strings)
     my $self = shift;
     my $sTree = shift;
+    my $logger = $oDebugger->GetLogger($self);
     
     # Lets add the directory tree to the object so we can use it again later with a reload strings method
-    $self->{_sDirectoryTree} = $sTree;
+    $self->{'_sDirectoryTree'} = $sTree;
     
     my $sLang;
-    print "--DEBUG Lang-- ### Entering LoadStrings ###\n" if ($self->{_iDebugLang} >= 1);
+
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
     
     my $sBaseLangDir = $self->GetLanguageDirectory();
-    if (exists $self->{_oParent}->{_oConfig}->{_hConfigData}->{language}) 
+    if (exists $self->{'_oParent'}->{'_oConfig'}->{'_hConfigData'}->{'language'}) 
     { 
-        $sLang = $self->{_oParent}->{_oConfig}->{_hConfigData}->{language}; 
-        print "--DEBUG Lang-- Using language: $sLang\n" if ($self->{_iDebugLang} >= 1);
+        $sLang = $self->{'_oParent'}->{'_oConfig'}->{'_hConfigData'}->{'language'}; 
+        $logger->debug("$self->{'_sName'} - ", "Using language: $sLang");
     }
     else 
     { 
-        print "--DEBUG Lang-- Language not found, reverting to en_us\n" if ($self->{_iDebugLang} >= 1);
+        $logger->debug("$self->{'_sName'} - ", "Language not found, reverting to en_us");
         $sLang = "en_us"; 
     }
     
     # If the language file does not yet exist, then lets return an empty hash
     unless (-r "$sBaseLangDir/$sTree/$sLang.lang") 
     {
-        print "--DEBUG Lang-- Language file $sBaseLangDir/$sTree/$sLang.lang does not exist, returning\n" if ($self->{_iDebugLang} >= 1);
+        $logger->debug("$self->{'_sName'} - ", "Language file $sBaseLangDir/$sTree/$sLang.lang does not exist, returning");
         return {};
     }
     
     my $sFullFilename = "$sBaseLangDir/$sTree/$sLang.lang";
     my $hLanguageSpecificStrings;
 
-    print "--DEBUG Lang-- sFullFilename: $sFullFilename\n" if ($self->{_iDebugLang} >= 1); 
+    $logger->debug("$self->{'_sName'} - ", "sFullFilename: $sFullFilename");
     
     if (-r $sFullFilename)
     {
-        print "--DEBUG Lang-- Reading from file: $sFullFilename\n" if ($self->{_iDebugLang} >= 1);
+        $logger->debug("$self->{'_sName'} - ", "Reading from file: $sFullFilename");
         my $oStrings = new Config::General
         (
             -ConfigFile => "$sFullFilename",
@@ -161,9 +178,9 @@ sub LoadStrings
         my %hAllSavedStrings = $oStrings->getall();
         $hLanguageSpecificStrings = $hAllSavedStrings{$sLang};        
     }
-    else { print "--DEBUG Lang-- Could not find file to read from\n" if ($self->{_iDebugLang} >= 1);}
+    else { $logger->debug("$self->{'_sName'} - ", "Could not find file to read from"); }
     
-    print "--DEBUG Lang-- ### Leaving LoadStrings ###\n" if ($self->{_iDebugLang} >= 1);
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
     return $hLanguageSpecificStrings;
 }
 
@@ -171,7 +188,8 @@ sub ReloadStrings
 {
     # This method is just a helper method for LoadStrings
     my $self = shift;
-    $self->LoadStrings("$self->{_sDirectoryTree}");
+    $self->LoadStrings("$self->{'_sDirectoryTree'}");
 }
 
 return 1;
+

@@ -1,4 +1,13 @@
 Release Notes:
+v0.99_15 - Beta 5 Release (2011-09-14)
+    Changes
+        Implemented Log::Log4perl
+        Various bug fixes
+
+v0.99_14 - Beta 4 Release (Non released version)
+    Changes
+        Minor fixes and tweaks
+
 v0.99_13 - Beta 3 Release (2011-07-26)
     Changes
         Renamed project from Term::CiscoCLI to Term::RouterCLI

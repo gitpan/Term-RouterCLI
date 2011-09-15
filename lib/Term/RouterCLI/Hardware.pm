@@ -23,12 +23,8 @@ use 5.8.8;
 use strict;
 use warnings;
 
-use parent qw(Exporter);
-our @EXPORT      = qw();
-our @EXPORT_OK   = qw();
-our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_13';
-
+our $VERSION     = '0.99_15';
+$VERSION = eval $VERSION;
 
 
 sub new
@@ -37,15 +33,11 @@ sub new
     my $class = ref($pkg) || $pkg;  
 
     my $self = {};
-    $self->{_sName}                 = $pkg;        # Lets set the object name so we can use it in debugging
-    $self->{_iDebug}                = 0;
-    $self->{_oConfig}               = undef;       # Lets pull in the configuration file object so we can use it.
-        
-    # Lets overwrite any defaults with values that are passed in
-    my %hParameters = @_;
-    foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
-
+    $self->{'_sName'}                 = $pkg;        # Lets set the object name so we can use it in debugging
     bless ($self, $class);
+
+    # Lets send any passed in arguments to the _init method
+    $self->_init(@_);
     return $self;
 }
 
@@ -54,5 +46,19 @@ sub DESTROY
     my $self = shift;
     $self = {};
 } 
+
+sub _init
+{
+    my $self = shift;
+    my %hParameters = @_;
+    
+    $self->{'_oConfig'}               = undef;       # Lets pull in the configuration file object so we can use it.
+    
+    # Lets overwrite any defaults with values that are passed in
+    if (%hParameters)
+    {
+        foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
+    }
+}
 
 return 1;
