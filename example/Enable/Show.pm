@@ -27,7 +27,7 @@ use UserExec::Show;
 
 sub CommandTree {
     my $self = shift;
-    my $lang = new Term::RouterCLI::Languages( _oParent => $self );
+    my $lang = new Term::RouterCLI::Languages();
     my $strings = $lang->LoadStrings("Enable/Show");
     my $hash_ref = {};
 

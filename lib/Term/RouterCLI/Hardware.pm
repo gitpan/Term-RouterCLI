@@ -23,7 +23,7 @@ use 5.8.8;
 use strict;
 use warnings;
 
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
 
@@ -51,8 +51,6 @@ sub _init
 {
     my $self = shift;
     my %hParameters = @_;
-    
-    $self->{'_oConfig'}               = undef;       # Lets pull in the configuration file object so we can use it.
     
     # Lets overwrite any defaults with values that are passed in
     if (%hParameters)

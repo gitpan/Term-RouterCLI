@@ -22,9 +22,10 @@ package Term::RouterCLI::Debugger;
 use 5.8.8;
 use strict;
 use warnings;
+use Config::General;
 use Log::Log4perl;
 
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
 
@@ -49,6 +50,7 @@ sub _init
     my %hParameters = @_;
 
     $self->{'_iDebug'}              = 0;            # This is for internal debugger debugging
+    $self->{'_sFilename'}           = undef;
 
     # Lets overwrite any defaults with values that are passed in
     if (%hParameters)
@@ -68,6 +70,38 @@ sub DESTROY
 # ----------------------------------------
 # Public Methods 
 # ----------------------------------------
+sub SetFilename 
+{ 
+    # This method is for setting the filename for the configuration file
+    # Required:
+    #   string(file name)
+    my $self = shift;
+    my $parameter = shift;
+    if (defined $parameter) { $self->{'_sFilename'} = $parameter; }
+}
+
+sub StartDebugger
+{
+    # This method will load the log4perl configuration file
+    my $self = shift;
+
+    my $oConfig = new Config::General
+    (
+        -ConfigFile => "$self->{'_sFilename'}",
+        -LowerCaseNames => 0,
+        -MergeDuplicateOptions => 1,
+        -AutoTrue => 0,
+        -ExtendedAccess => 1,
+        -SaveSorted => 1
+    );
+    
+    # Lets get all of the configuration in one pass to save disk IO then lets save the data in to the object 
+    my %hConfiguration = $oConfig->getall();
+    my $hLogConfig = \%hConfiguration;
+
+    Log::Log4perl::init($hLogConfig);
+}
+
 sub GetLogger
 {
     # This method is a helper method to get the Log4perl logger object

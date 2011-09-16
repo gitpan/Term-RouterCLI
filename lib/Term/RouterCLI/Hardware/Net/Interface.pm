@@ -22,10 +22,11 @@ package Term::RouterCLI::Hardware::Net::Interface;
 use 5.8.8;
 use strict;
 use warnings;
+use Term::RouterCLI::Config;
 use Term::RouterCLI::Debugger;
 use Log::Log4perl;
 
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
 # Define our parent
@@ -33,6 +34,7 @@ use parent qw(Term::RouterCLI::Hardware::Net);
 
 
 my $oDebugger = new Term::RouterCLI::Debugger();
+my $oConfig = new Term::RouterCLI::Config();
 my $ethtool = './bin/ethtool';
 
 
@@ -42,6 +44,8 @@ sub GetInterfaceList
     # file for any excluded interfaces.  
     my $self = shift;
     my $logger = $oDebugger->GetLogger($self);
+    my $config = $oConfig->GetRunningConfig();
+    
     $logger->debug("$self->{'_sName'} - ", '### Entering Method ###'); 
     
     my @aInterfacesProcData = `cat /proc/net/dev`;
@@ -53,7 +57,7 @@ sub GetInterfaceList
         my ($key, $value) = split (":", $_);
 
         # There are some interface that we will want to skip so lets flag them as disabled
-        if (exists $self->{'_oConfig'}->{'_hConfigData'}->{'system'}->{'excluded_interfaces'}->{$key}) { $self->{'_hInterfaces'}->{$key}->{'enabled'} = 0; }
+        if (exists $config->{'system'}->{'excluded_interfaces'}->{$key}) { $self->{'_hInterfaces'}->{$key}->{'enabled'} = 0; }
         else { $self->{'_hInterfaces'}->{$key}->{'enabled'} = 1; }
     }
     $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');

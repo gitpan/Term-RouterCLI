@@ -43,11 +43,12 @@ use POSIX qw(strftime);
 use Env qw(SSH_TTY);
 use Log::Log4perl;
 
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
 
 my $oDebugger = new Term::RouterCLI::Debugger();
+my $oConfig = new Term::RouterCLI::Config();
 
 
 sub new
@@ -71,7 +72,7 @@ sub _init
     
     # Application data
     $self->{_sConfigFilename}                   = './etc/RouterCLI.conf';
-    $self->{_sLoggingConfigFilename}            = './etc/log4perl.conf';
+    $self->{_sDebuggerConfigFilename}           = './etc/log4perl.conf';
     $self->{_sCurrentPrompt}                    = "Router> ";
     $self->{_sCurrentPromptLevel}               = '> ';
     $self->{_sActiveLoggedOnUser}               = "";
@@ -90,11 +91,25 @@ sub _init
     $self->{_sTokenCharacters}                  = '';
     $self->{_iKeepQuotes}                       = 1;
 
+    # Lets overwrite any defaults with values that are passed in
+    if (%hParameters)
+    {
+        foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
+    }
+
+    # We need to make sure the debugger always starts, and starts really before everything else 
+    # so lets start it here in the _init script
+    $oDebugger->SetFilename( $self->{_sDebuggerConfigFilename} );
+    $oDebugger->StartDebugger();
+
+    # Load the current configuration in to memory, this has to be done before we load command trees
+    $oConfig->SetFilename( $self->{_sConfigFilename} );
+    $oConfig->LoadConfig();
+
+
     # Objects
     $self->{_oAuditLog}                         = new Term::RouterCLI::Log::Audit(   _oParent => $self, _sFilename => './logs/.cli-auditlog' );
     $self->{_oHistory}                          = new Term::RouterCLI::Log::History( _oParent => $self, _sFilename => './logs/.cli-history' );
-    $self->{_oConfig}                           = new Term::RouterCLI::Config( _sFilename => $self->{_sConfigFilename} );
-    $self->{_oLoggerConfig}                     = new Term::RouterCLI::Config( _sFilename => $self->{_sLoggingConfigFilename} );
     $self->{_oTerm}                             = new Term::ReadLine("$0");
     $self->{_oParser} = Text::Shellwords::Cursor->new(
         token_chars => $self->{_sTokenCharacters},
@@ -115,12 +130,6 @@ sub _init
 
     # Lets capture the tty that they used to connected to the CLI
     if (defined $SSH_TTY) { $self->{_sTTYInUse} = $SSH_TTY; }
-
-    # Lets overwrite any defaults with values that are passed in
-    if (%hParameters)
-    {
-        foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
-    }
 }
 
 sub DESTROY
@@ -167,39 +176,32 @@ sub SetHistoryFilename      { shift->{_oHistory}->SetFilename(@_);      }
 sub SetHistoryFileLength    { shift->{_oHistory}->SetFileLength(@_);    }
 sub PrintHistory            { shift->{_oHistory}->PrintHistory(@_);     }
 
-sub SetConfigFilename       { shift->{_oConfig}->SetFilename(@_);       }
-sub LoadConfig              { shift->{_oConfig}->LoadConfig();          }
-sub SaveConfig              { shift->{_oConfig}->SaveConfig();          }
-sub SetLoggerConfigFilename { shift->{_oLoggerConfig}->SetFilename(@_); }
-sub LoadLoggerConfig        { shift->{_oLoggerConfig}->LoadConfig();    }
 
 
 # ----------------------------------------
 # Public Methods
 # ----------------------------------------
-sub StartLogger
-{
-    # This method will load the log4perl configuration file
-    my $self = shift;
 
-## TODO move this method to the debugger, it should not be in the config class
-    $self->LoadLoggerConfig();
-    my $hLogConfig = $self->{_oLoggerConfig}->{_hConfigData};
-    Log::Log4perl::init($hLogConfig);
+sub SaveConfig 
+{
+    # This method is used for saving the current running configuration
+    my $self = shift;
+    $oConfig->SaveConfig();
 }
 
 sub ClearScreen
 {
-    # This function will clear the screen from all login information
+    # This method will clear the screen from all login information
     my $self = shift;
     print `clear`;
 }
 
 sub PrintMOTD
 {
-    # This function will print out a welcome message
+    # This method will print out a welcome message
     my $self = shift;
-    print "\n\n$self->{_oConfig}->{_hConfigData}->{motd}->{text}\n";
+    my $config = $oConfig->GetRunningConfig();
+    print "\n\n$config->{motd}->{text}\n";
 }
 
 sub SetHostname
@@ -207,8 +209,10 @@ sub SetHostname
     # This method will set the hostname
     my $self = shift;
     my $parameter = shift;
+    my $config = $oConfig->GetRunningConfig();
+    
     unless (defined $parameter) { $parameter = $self->{_aCommandArguments}->[0]; }
-    $self->{_oConfig}->{_hConfigData}->{hostname} = $parameter;
+    $config->{hostname} = $parameter;
     # When ever the hostname is changes, we need to refresh the prompt
     $self->SetPrompt($parameter);
 }
@@ -221,17 +225,18 @@ sub SetLangDirectory
     my $self = shift;
     my $parameter = shift;
     my $logger = $oDebugger->GetLogger($self);
+    my $config = $oConfig->GetRunningConfig();
     
     $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
-    $logger->debug("$self->{'_sName'} - Current Language Directory is: $self->{_oConfig}->{_hConfigData}->{system}->{language_directory}");
+    $logger->debug("$self->{'_sName'} - Current Language Directory is: $config->{system}->{language_directory}");
     $logger->debug("$self->{'_sName'} - New Language Directory is: $parameter");
 
     unless (defined $parameter) { return; }
     $parameter = $self->_ExpandTildes($parameter);
-    $self->{_oConfig}->{_hConfigData}->{system}->{language_directory} = $parameter;
+    $config->{system}->{language_directory} = $parameter;
 
 
-    $logger->debug("$self->{'_sName'} - Directory is now: $self->{_oConfig}->{_hConfigData}->{system}->{language_directory}");
+    $logger->debug("$self->{'_sName'} - Directory is now: $config->{system}->{language_directory}");
     $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
@@ -239,14 +244,14 @@ sub StartCLI
 {
     # This method will start the actual processing of the CLI
     my $self = shift;
-    
+    my $config = $oConfig->GetRunningConfig();
     $self->{_oAuditLog}->StartAuditLog() if ($self->{_oAuditLog}->{_bEnabled} == 1 );
     
     unless (defined $self->{_hFullCommandTree}) { die "Please load an initial command tree\n"; }
     
     # Set prompt from configuration file
     $self->ClearPromptOrnaments();
-    $self->SetPrompt($self->{_oConfig}->{_hConfigData}->{hostname});
+    $self->SetPrompt($config->{hostname});
     
     
     # Load the previous command history in to memory
@@ -256,7 +261,6 @@ sub StartCLI
     {
         $self->_ProcessCommands();
     }
-    print "$Term::RouterCLI::Config::test\n";
     
     # Close AuditLog and save command History
     $self->{_oHistory}->SaveCommandHistoryToFile() if ($self->{_oHistory}->{_bEnabled} == 1 );
@@ -359,7 +363,8 @@ sub _ProcessCommands
     # This method prompts for and returns the results from a single command. Returns undef if no command was called.
     my $self = shift;
     my $logger = $oDebugger->GetLogger($self);
-
+    my $config = $oConfig->GetRunningConfig();
+    
     # Before we get started, lets clear out the data structure from the last command we processed
     $self->RESET();    
 
@@ -437,7 +442,7 @@ sub _ProcessCommands
 
         # This will allow us to enter partial commands on the command line and have them completed
         $logger->debug("$self->{'_sName'} - _sCompleteRawline: $self->{_sCompleteRawline}");
-        $self->_CompletionFunction("NONE", $self->{_sCompleteRawline}) unless ($self->{_sCompleteRawline} eq ""); 
+        $self->_CompletionFunction("NONE", $self->{_sCompleteRawline}, "0") unless ($self->{_sCompleteRawline} eq ""); 
         last; 
 	} 
 
@@ -493,10 +498,10 @@ sub _ProcessCommands
     # TODO build a logger that all of this will go in to
     # TODO add support to send history to RADIUS in the form of RADIUS account records
     # TODO add support for sending history to syslog server
-#    if (($iSaveToHistory == 1) && ($self->{_oConfig}->{_hConfig}->{syslog} == 1))
+#    if (($iSaveToHistory == 1) && ($config->{syslog} == 1))
 #    {
 #        setlogsock('udp');
-#        $Sys::Syslog::host = $self->{_oConfig}->{_hConfig}->{syslog_server};
+#        $Sys::Syslog::host = $config->{syslog_server};
 #        my $sTimeStamp = strftime "%Y-%b-%e %a %H:%M:%S", localtime;
 #        openlog("RouterCLI", 'ndelay', 'user');
 #        syslog('info', "($sTimeStamp) \[$sPrompt\] $sCommandString");
@@ -808,6 +813,7 @@ sub _AuthCommand
     #   0 = failed authentication
     my $self = shift;
     my $logger = $oDebugger->GetLogger($self);
+    my $config = $oConfig->GetRunningConfig();
     my $OUT = $self->{OUT};
 
     $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
@@ -822,19 +828,19 @@ sub _AuthCommand
     my $oAuth = new Term::RouterCLI::Auth();
     
     my $iMaxAttempt = 3;
-    if ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{max_attempts} ) { $iMaxAttempt = $self->{_oConfig}->{_hConfigData}->{auth}->{max_attempts}; }
+    if ( exists $config->{auth}->{max_attempts} ) { $iMaxAttempt = $config->{auth}->{max_attempts}; }
     
     my $sAuthMode = "shared";
-    if ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{mode} ) { $sAuthMode = $self->{_oConfig}->{_hConfigData}->{auth}->{mode}; }
+    if ( exists $config->{auth}->{mode} ) { $sAuthMode = $config->{auth}->{mode}; }
     
     $logger->debug("$self->{'_sName'} - iMaxAttempt: $iMaxAttempt");
     $logger->debug("$self->{'_sName'} - sAuthMode: $sAuthMode");
     
     if ($sAuthMode eq "shared")
     {
-        if ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{password} ) 
+        if ( exists $config->{auth}->{password} ) 
         { 
-            $sStoredPassword = $self->{_oConfig}->{_hConfigData}->{auth}->{password};
+            $sStoredPassword = $config->{auth}->{password};
             ($iCryptID, $sStoredSalt, $sStoredPassword) = $oAuth->SplitPasswordString(\$sStoredPassword);
         }   
         
@@ -887,7 +893,7 @@ sub _AuthCommand
             my $sPassword = $oAuth->PromptForPassword();
             $logger->debug("$self->{'_sName'} - sPassword: $$sPassword");
 
-            unless ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{user}->{$sUsername} ) 
+            unless ( exists $config->{auth}->{user}->{$sUsername} ) 
             { 
                 $logger->debug("$self->{'_sName'} - iAttempt: $iAttempt");
                 $iAttempt++;
@@ -895,19 +901,19 @@ sub _AuthCommand
             }
             
             # This is where we add support for things like RADIUS or TACACS from the configuration file
-            if ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{user}->{$sUsername}->{authmode} )
+            if ( exists $config->{auth}->{user}->{$sUsername}->{authmode} )
             {
-                $sUserAuthMode = $self->{_oConfig}->{_hConfigData}->{auth}->{user}->{$sUsername}->{authmode};
+                $sUserAuthMode = $config->{auth}->{user}->{$sUsername}->{authmode};
             }
 
             # We do not allow undefined passwords
-            unless ( exists $self->{_oConfig}->{_hConfigData}->{auth}->{user}->{$sUsername}->{password} ) 
+            unless ( exists $config->{auth}->{user}->{$sUsername}->{password} ) 
             { 
                 $logger->debug("$self->{'_sName'} - iAttempt: $iAttempt");
                 $iAttempt++;
                 next;
             }  
-            $sStoredPassword = $self->{_oConfig}->{_hConfigData}->{auth}->{user}->{$sUsername}->{password};
+            $sStoredPassword = $config->{auth}->{user}->{$sUsername}->{password};
             ($iCryptID, $sStoredSalt, $sStoredPassword) = $oAuth->SplitPasswordString(\$sStoredPassword);
 
             my $sEncryptedPassword = $oAuth->EncryptPassword($iCryptID, $sPassword, $sStoredSalt);
@@ -1023,11 +1029,11 @@ sub _CompletionFunction
         cursorpos=>$self->{_iCurrentCursorLocation}, 
         fixclosequote=>1
     );
-
+    
     $logger->debug("$self->{'_sName'} - Data returned from the parser function");
     $logger->debug("$self->{'_sName'} - \t_aCommandTokens: ", ${$oDebugger->DumpArray($self->{_aCommandTokens})});
-    $logger->debug("$self->{'_sName'} - \t_iTokenNumber: $self->{_iTokenNumber}");
-    $logger->debug("$self->{'_sName'} - \t_iTokenOffset: $self->{_iTokenOffset}");
+    $logger->debug("$self->{'_sName'} - \t_iTokenNumber: $self->{_iTokenNumber}") if (defined $self->{_iTokenNumber});
+    $logger->debug("$self->{'_sName'} - \t_iTokenOffset: $self->{_iTokenOffset}") if (defined $self->{_iTokenOffset});
     
     # Punt if nothing comes back from the parser
     unless (defined($self->{_aCommandTokens})) { $logger->fatal("ERROR 1001"); return; }

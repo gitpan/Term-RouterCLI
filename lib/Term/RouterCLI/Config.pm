@@ -27,10 +27,11 @@ use Config::General();
 use File::Copy;
 use Log::Log4perl;
 
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
-
+our $hRunningConfig;
+our $hStartupConfig;
 my $oDebugger = new Term::RouterCLI::Debugger();
 
 
@@ -53,10 +54,8 @@ sub _init
     my $self = shift;
     my %hParameters = @_;
 
-    $self->{'_sFilename'}             = undef;
-    $self->{'_hConfigData'}           = undef;
-    $self->{'_oConfigFile'}           = undef;
-
+    $self->{'_sFilename'}               = undef;
+    
     # Lets overwrite any defaults with values that are passed in
     if (%hParameters)
     {
@@ -99,11 +98,26 @@ sub LoadConfig
         -ExtendedAccess => 1,
         -SaveSorted => 1
     );
-    $self->{'_oConfigFile'} = $oConfig;
-
+    
     # Lets get all of the configuration in one pass to save disk IO then lets save the data in to the object 
-    my %hConfiguration = $oConfig->getall();
-    $self->{'_hConfigData'} = \%hConfiguration;
+    my %hStartupConfiguration = $oConfig->getall();
+    my %hRunningConfiguration = %hStartupConfiguration;
+    $hStartupConfig = \%hStartupConfiguration;
+    $hRunningConfig = \%hRunningConfiguration;
+}
+
+sub GetStartupConfig
+{
+    # This method will return the global object for the Startup Configuration
+    my $self = shift;
+    return $hStartupConfig;
+}
+
+sub GetRunningConfig
+{
+    # This method will return the global object for the Running Configuration
+    my $self = shift;
+    return $hRunningConfig;
 }
 
 sub ReloadConfig
@@ -111,7 +125,8 @@ sub ReloadConfig
     # This method will reload the current configuration
     my $self = shift;
     
-    $self->{'_hConfigData'} = undef;
+    $hStartupConfig = undef;
+    $hRunningConfig = undef;
     $self->LoadConfig();
 }
 
@@ -125,8 +140,18 @@ sub SaveConfig
     # Backup configuration first
     $self->BackupConfig();
     
+    my $oConfig = new Config::General
+    (
+        -ConfigFile => "$self->{'_sFilename'}",
+        -LowerCaseNames => 0,
+        -MergeDuplicateOptions => 1,
+        -AutoTrue => 0,
+        -ExtendedAccess => 1,
+        -SaveSorted => 1
+    );
+    
     # Save current configuration
-    $self->{'_oConfigFile'}->save_file("$self->{'_sFilename'}", $self->{'_hConfigData'});
+    $oConfig->save_file("$self->{'_sFilename'}", $hRunningConfig);
     $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 

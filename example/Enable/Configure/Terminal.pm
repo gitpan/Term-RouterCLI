@@ -20,14 +20,17 @@
 package Enable::Configure::Terminal;
 
 use strict;
+use Term::RouterCLI::Config;
 use Term::RouterCLI::Languages;
 use Enable;
 
+my $oConfig = new Term::RouterCLI::Config();
 
 
 sub CommandTree {
     my $self = shift;
-    my $lang = new Term::RouterCLI::Languages( _oParent => $self );
+    my $config = $oConfig->GetRunningConfig();
+    my $lang = new Term::RouterCLI::Languages();
     my $strings = $lang->LoadStrings("Enable/Configure/Terminal");
     my $hash_ref = {};
 
@@ -39,7 +42,7 @@ sub CommandTree {
             code    => sub {
                 my $self = shift;
                 $self->SetPromptLevel('# ');
-                $self->SetPrompt($self->{_oConfig}->{_hConfigData}->{hostname});
+                $self->SetPrompt($config->{hostname});
                 $self->CreateCommandTree(&Enable::CommandTree($self));
             },
         },
@@ -57,7 +60,7 @@ sub CommandTree {
             minargs => 1,
             code    => sub { 
                 my $self = shift; 
-                $lang->SetLanguage(); 
+                $lang->SetLanguage($self->{'_aCommandArguments'}->[0]); 
                 $self->CreateCommandTree(&Enable::Configure::Terminal::CommandTree($self));
             } 
         },

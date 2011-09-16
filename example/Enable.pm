@@ -21,16 +21,18 @@
 package Enable;
 
 use strict;
+use Term::RouterCLI::Config;
 use Term::RouterCLI::Languages;
 use UserExec;
 use Enable::Show; 
 use Enable::Configure::Terminal;
 
-
+my $oConfig = new Term::RouterCLI::Config();
 
 sub CommandTree {
     my $self = shift;
-    my $lang = new Term::RouterCLI::Languages( _oParent => $self );
+    my $config = $oConfig->GetRunningConfig();
+    my $lang = new Term::RouterCLI::Languages();
     my $strings = $lang->LoadStrings("Enable");
     my $hash_ref = {};
 
@@ -53,7 +55,7 @@ sub CommandTree {
             code    => sub {
                 my $self = shift;
                 $self->SetPromptLevel('> ');
-                $self->SetPrompt($self->{_oConfig}->{_hConfigData}->{hostname});
+                $self->SetPrompt($config->{hostname});
                 $self->CreateCommandTree(&UserExec::CommandTree($self));
             }
         },
@@ -65,7 +67,7 @@ sub CommandTree {
                     code => sub {
                         my $self = shift;
                         $self->SetPromptLevel('(config)# ');
-                        $self->SetPrompt($self->{_oConfig}->{_hConfigData}->{hostname});
+                        $self->SetPrompt($config->{hostname});
                         $self->CreateCommandTree(&Enable::Configure::Terminal::CommandTree($self));
                     } 
                 }

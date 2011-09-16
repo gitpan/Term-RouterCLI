@@ -27,7 +27,7 @@ use Log::Log4perl;
 use Term::ReadKey;
 use Digest::SHA qw(hmac_sha512_hex);
 
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
 

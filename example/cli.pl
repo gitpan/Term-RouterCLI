@@ -8,13 +8,7 @@ use UserExec;
 
 
 
-my $cli = new Term::RouterCLI('_iDebugCompletion' => 0, '_iDebugFind' => 0, '_iDebug' => 0, '_iDebugHelp' => 0, '_iDebugAuth' => 0 );
-
-# Load the current configuration in to memory, this has to be done before we load command trees
-$cli->SetLoggerConfigFilename('etc/log4perl.conf');
-$cli->StartLogger();
-$cli->SetConfigFilename('etc/RouterCLI.conf');
-$cli->LoadConfig();
+my $cli = new Term::RouterCLI( _sConfigFilename => 'etc/RouterCLI.conf', _sDebuggerConfigFilename => 'etc/log4perl.conf' );
 
 
 

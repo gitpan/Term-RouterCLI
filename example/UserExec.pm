@@ -21,15 +21,18 @@
 package UserExec;
 
 use strict;
+use Term::RouterCLI::Config;
 use Term::RouterCLI::Languages;
 use UserExec::Show;
 use Enable;
 
+my $oConfig = new Term::RouterCLI::Config();
 
 
 sub CommandTree {
     my $self = shift;
-    my $lang = new Term::RouterCLI::Languages( _oParent => $self );
+    my $config = $oConfig->GetRunningConfig();
+    my $lang = new Term::RouterCLI::Languages();
     my $strings = $lang->LoadStrings("UserExec");
     my $hash_ref = {};
 
@@ -66,7 +69,7 @@ sub CommandTree {
             code  => sub {
                 my $self = shift;
                 $self->SetPromptLevel('# ');
-                $self->SetPrompt($self->{_oConfig}->{_hConfigData}->{hostname});
+                $self->SetPrompt($config->{hostname});
                 $self->CreateCommandTree(&Enable::CommandTree($self));
             },
         },

@@ -1,4 +1,11 @@
 Release Notes:
+v0.99_16 - Beta 6 Release ()
+    Changes
+        Setup an actual configuration object for Running and Startup Configs
+        Removed the need to pass the config object in to other classes
+        Cleaned up some of the need to pass the parent object around
+        Fixed some of the debug statements
+    
 v0.99_15 - Beta 5 Release (2011-09-14)
     Changes
         Implemented Log::Log4perl

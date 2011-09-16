@@ -23,7 +23,7 @@ use 5.8.8;
 use strict;
 use warnings;
 
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
 # Define our parent

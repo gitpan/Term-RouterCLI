@@ -32,6 +32,7 @@ example/Enable.pm
 example/Enable/Show.pm
 example/Enable/Configure/Terminal.pm
 example/etc/RouterCLI.conf
+example/etc/log4perl.conf
 example/lang/UserExec/en_us.lang
 example/lang/UserExec/fr.lang
 example/lang/UserExec/Show/en_us.lang

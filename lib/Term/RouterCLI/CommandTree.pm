@@ -27,7 +27,7 @@ use parent qw(Exporter);
 our @EXPORT      = qw();
 our @EXPORT_OK   = qw( CreateCommandTree GetCurrentCommandTree GetFullCommandTree AddToCommandTree AuthenticateCommandTree );
 our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
 
@@ -43,9 +43,6 @@ sub CreateCommandTree
     #   hashref (command tree)
     my $self = shift;
     my $hCommandTree = shift;
-    
-    # Lets just make double sure the configuration file has been loaded.
-    unless (defined $self->{'_oConfig'}) { $self->LoadConfig();}
     
     $self->{'_hFullCommandTree'} = $hCommandTree;
 }

@@ -26,7 +26,7 @@ use Term::RouterCLI::Debugger;
 use Log::Log4perl;
 use FileHandle;
 
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
 
@@ -241,7 +241,7 @@ sub ReadLogFile
         $self->{'_aCurrentLogData'} = \@aNewLogData;
         
         
-        $logger->debug("$self->{'_sName'} - _aCurrentLogData:\n", ${$oDebugger->DumpArray($self->{'_aCurrentLogData'})});
+        $logger->debug("$self->{'_sName'} - _aCurrentLogData: ", ${$oDebugger->DumpArray($self->{'_aCurrentLogData'})});
 
         # Lets capture the current log size so we have it
         $self->SetCurrentLogSize();

@@ -29,7 +29,7 @@ our @EXPORT      = qw();
 our @EXPORT_OK   = qw( SetPrompt GetPrompt SetPromptLevel GetPromptLevel ClearPromptOrnaments ChangeActivePrompt);
 our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
 
-our $VERSION     = '0.99_15';
+our $VERSION     = '0.99_16';
 $VERSION = eval $VERSION;
 
 

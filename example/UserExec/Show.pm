@@ -21,14 +21,17 @@
 package UserExec::Show;
 
 use strict;
+use Term::RouterCLI::Config;
 use Term::RouterCLI::Languages;
 use Term::RouterCLI::Hardware::Net::Interface;
 
+my $oConfig = new Term::RouterCLI::Config();
 
 
 sub CommandTree {
     my $self = shift;
-    my $lang = new Term::RouterCLI::Languages( _oParent => $self );
+    my $config = $oConfig->GetRunningConfig();
+    my $lang = new Term::RouterCLI::Languages();
     my $strings = $lang->LoadStrings("UserExec/Show");
     my $hash_ref = {};
     
@@ -49,7 +52,7 @@ sub CommandTree {
             maxargs => 1,
             code    => sub { 
                 my $self = shift;
-                my $int = new Term::RouterCLI::Hardware::Net::Interface( _oConfig => $self->{_oConfig} );
+                my $int = new Term::RouterCLI::Hardware::Net::Interface();
                 $int->ShowInterface("normal", $self->{_aCommandArguments}->[0]);
             },
             cmds => {
@@ -58,7 +61,7 @@ sub CommandTree {
                     maxargs => 1,
                     code    => sub { 
                         my $self = shift;
-                        my $int = new Term::RouterCLI::Hardware::Net::Interface( _oConfig => $self->{_oConfig} );
+                        my $int = new Term::RouterCLI::Hardware::Net::Interface();
                         $int->ShowInterface("brief", $self->{_aCommandArguments}->[0]);
                     },
                 },
