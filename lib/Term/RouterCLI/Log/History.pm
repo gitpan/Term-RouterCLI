@@ -26,7 +26,7 @@ use parent qw(Term::RouterCLI::Log);
 use Term::RouterCLI::Debugger;
 use Log::Log4perl;
 
-our $VERSION     = '0.99_16';
+our $VERSION     = '1.00';
 $VERSION = eval $VERSION;
 
 

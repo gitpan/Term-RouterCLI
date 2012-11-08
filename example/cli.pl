@@ -11,9 +11,10 @@ use UserExec;
 my $cli = new Term::RouterCLI( _sConfigFilename => 'etc/RouterCLI.conf', _sDebuggerConfigFilename => 'etc/log4perl.conf' );
 
 
+my $lang = new Term::RouterCLI::Languages();
+$lang->SetLangDirectory('./lang/');
 
 # Load initial command tree
-$cli->SetLangDirectory('./lang/');
 $cli->CreateCommandTree(&UserExec::CommandTree($cli));
 $cli->SetHistoryFileLength("10");
 $cli->SetAuditLogFileLength("10");

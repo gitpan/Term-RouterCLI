@@ -25,9 +25,10 @@ use warnings;
 use Config::General;
 use Log::Log4perl;
 
-our $VERSION     = '0.99_16';
+our $VERSION     = '1.00';
 $VERSION = eval $VERSION;
 
+our $hDebugConfig;
 
 
 sub new
@@ -97,9 +98,24 @@ sub StartDebugger
     
     # Lets get all of the configuration in one pass to save disk IO then lets save the data in to the object 
     my %hConfiguration = $oConfig->getall();
-    my $hLogConfig = \%hConfiguration;
+    $hDebugConfig = \%hConfiguration;
 
-    Log::Log4perl::init($hLogConfig);
+    Log::Log4perl::init($hDebugConfig);
+}
+
+sub ReloadDebuggerConfiguration
+{
+    # This method will reload the current debugger configuration that is in memory allowing us to turn
+    # debugging on and off on the fly.
+    my $self = shift;
+    Log::Log4perl::init($hDebugConfig);
+}
+
+sub GetDebugConfig
+{
+    # This method will return the global object for the Debug Configuration so that it can be edited on the fly
+    my $self = shift;
+    return $hDebugConfig;
 }
 
 sub GetLogger

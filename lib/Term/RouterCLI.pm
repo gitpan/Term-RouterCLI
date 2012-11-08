@@ -25,6 +25,7 @@ package Term::RouterCLI;
 use 5.8.8;
 use strict;
 use warnings;
+use parent qw(Term::RouterCLI::Base);
 
 use Term::RouterCLI::Debugger;
 use Term::RouterCLI::Auth;
@@ -39,31 +40,16 @@ use Term::ReadLine();
 use Text::Shellwords::Cursor;
 use Config::General;
 use Sys::Syslog qw(:DEFAULT setlogsock);
-use POSIX qw(strftime);
 use Env qw(SSH_TTY);
 use Log::Log4perl;
 
-our $VERSION     = '0.99_16';
+our $VERSION     = '1.00';
 $VERSION = eval $VERSION;
 
 
 my $oDebugger = new Term::RouterCLI::Debugger();
 my $oConfig = new Term::RouterCLI::Config();
 
-
-sub new
-{
-    my $pkg = shift;
-    my $class = ref($pkg) || $pkg;  
-    
-    my $self = {};
-    $self->{_sName}                             = $pkg;        # Lets set the object name so we can use it in debugging
-    bless ($self, $class);
-    
-    # Lets send any passed in arguments to the _init method
-    $self->_init(@_);
-    return $self;
-}
 
 sub _init    
 {
@@ -132,12 +118,6 @@ sub _init
     if (defined $SSH_TTY) { $self->{_sTTYInUse} = $SSH_TTY; }
 }
 
-sub DESTROY
-{
-    my $self = shift;
-    $self = {};
-}
-
 sub RESET
 {
     # This method will reset the data structure
@@ -181,7 +161,6 @@ sub PrintHistory            { shift->{_oHistory}->PrintHistory(@_);     }
 # ----------------------------------------
 # Public Methods
 # ----------------------------------------
-
 sub SaveConfig 
 {
     # This method is used for saving the current running configuration
@@ -215,29 +194,6 @@ sub SetHostname
     $config->{hostname} = $parameter;
     # When ever the hostname is changes, we need to refresh the prompt
     $self->SetPrompt($parameter);
-}
-
-sub SetLangDirectory
-{
-    # this method will change the language directory field in the configuration data hash
-    # Required:
-    #   string (directory path, full or relative)
-    my $self = shift;
-    my $parameter = shift;
-    my $logger = $oDebugger->GetLogger($self);
-    my $config = $oConfig->GetRunningConfig();
-    
-    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
-    $logger->debug("$self->{'_sName'} - Current Language Directory is: $config->{system}->{language_directory}");
-    $logger->debug("$self->{'_sName'} - New Language Directory is: $parameter");
-
-    unless (defined $parameter) { return; }
-    $parameter = $self->_ExpandTildes($parameter);
-    $config->{system}->{language_directory} = $parameter;
-
-
-    $logger->debug("$self->{'_sName'} - Directory is now: $config->{system}->{language_directory}");
-    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub StartCLI
@@ -346,18 +302,6 @@ sub error
 # ----------------------------------------
 # Private Methods 
 # ----------------------------------------
-sub _ExpandTildes
-{
-    # This method will expand any tildes that are in the file name so that it will work right
-    # Required:
-    #   string (directory to be expanded)
-    my $self = shift;
-    my $parameter = shift;
-    
-    $parameter =~ s/^~([^\/]*)/$1?(getpwnam($1))[7]:$ENV{HOME}||$ENV{LOGDIR}||(getpwuid($>))[7]/e;
-    return $parameter;
-}
-
 sub _ProcessCommands
 {
     # This method prompts for and returns the results from a single command. Returns undef if no command was called.
@@ -502,7 +446,7 @@ sub _ProcessCommands
 #    {
 #        setlogsock('udp');
 #        $Sys::Syslog::host = $config->{syslog_server};
-#        my $sTimeStamp = strftime "%Y-%b-%e %a %H:%M:%S", localtime;
+#        my $sTimeStamp = strftime "%Y-%b-%e %a %H:%M:%S", localtime;  # I removed the use POSIX that imported the strftime function
 #        openlog("RouterCLI", 'ndelay', 'user');
 #        syslog('info', "($sTimeStamp) \[$sPrompt\] $sCommandString");
 #        closelog;

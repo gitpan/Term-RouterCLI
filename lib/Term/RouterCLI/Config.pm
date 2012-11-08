@@ -27,7 +27,7 @@ use Config::General();
 use File::Copy;
 use Log::Log4perl;
 
-our $VERSION     = '0.99_16';
+our $VERSION     = '1.00';
 $VERSION = eval $VERSION;
 
 our $hRunningConfig;

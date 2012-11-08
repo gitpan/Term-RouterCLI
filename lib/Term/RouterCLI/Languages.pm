@@ -22,36 +22,14 @@ package Term::RouterCLI::Languages;
 use 5.8.8;
 use strict;
 use warnings;
+use parent qw(Term::RouterCLI::Base);
 use Term::RouterCLI::Config;
 use Term::RouterCLI::Debugger;
 use Log::Log4perl;
 
-our $VERSION     = '0.99_16';
+our $VERSION     = '1.00';
 $VERSION = eval $VERSION;
 
-
-my $oDebugger = new Term::RouterCLI::Debugger();
-my $oConfig = new Term::RouterCLI::Config();
-
-sub new
-{
-    my $pkg = shift;
-    my $class = ref($pkg) || $pkg;  
-
-    my $self = {};
-    $self->{'_sName'}               = $pkg;         # Lets set the object name so we can use it in debugging
-    bless ($self, $class);
-
-    # Lets send any passed in arguments to the _init method
-    $self->_init(@_);
-    return $self;
-}
-
-sub DESTROY
-{
-    my $self = shift;
-    $self = {};
-}
 
 sub _init
 {
@@ -66,6 +44,8 @@ sub _init
     {
         foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
     }
+    $self->_initDebugger();
+    $self->_initConfig();
 }
 
 
@@ -77,10 +57,37 @@ sub GetLanguageDirectory
 {
     # This method will return the current language directory as defined in the configuration file
     my $self = shift;
-    my $config = $oConfig->GetRunningConfig();
+    my $config = $self->{_oConfig}->GetRunningConfig();
     
-    unless (exists $config->{'system'}->{'language_directory'}) { return ('./lang/'); }
-    return ($config->{'system'}->{'language_directory'});
+    my $slangDir = './lang/';
+    
+    if (exists $config->{'system'}->{'language_directory'}) 
+    { 
+        $slangDir = $config->{'system'}->{'language_directory'};
+    }
+    return ($slangDir);
+}
+
+sub SetLangDirectory
+{
+    # this method will change the language directory field in the configuration data hash
+    # Required:
+    #   string (directory path, full or relative)
+    my $self = shift;
+    my $parameter = shift;
+    my $logger = $self->{_oDebugger}->GetLogger($self);
+    my $config = $self->{_oConfig}->GetRunningConfig();
+    
+    $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
+    $logger->debug("$self->{'_sName'} - Current Language Directory is: $config->{system}->{language_directory}");
+    $logger->debug("$self->{'_sName'} - New Language Directory is: $parameter");
+
+    unless (defined $parameter) { return; }
+    $parameter = $self->_ExpandTildes($parameter);
+    $config->{system}->{language_directory} = $parameter;
+
+    $logger->debug("$self->{'_sName'} - Directory is now: $config->{system}->{language_directory}");
+    $logger->debug("$self->{'_sName'} - ", '### Leaving Method ###');
 }
 
 sub AddValidLanguage
@@ -90,7 +97,7 @@ sub AddValidLanguage
     #   hash_ref (valid languages where keys are ISO values)
     my $self = shift;
     my $hParameter = shift;
-    my $logger = $oDebugger->GetLogger($self);
+    my $logger = $self->{_oDebugger}->GetLogger($self);
     
     $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
     foreach (keys (%$hParameter)) { $self->{'_hValidLanguages'}->{$_} = $hParameter->{$_}; }
@@ -102,12 +109,12 @@ sub SetLanguage
     # This method will set the current language
     my $self = shift;
     my $lang = shift;
-    my $logger = $oDebugger->GetLogger($self);
-    my $config = $oConfig->GetRunningConfig();
+    my $logger = $self->{_oDebugger}->GetLogger($self);
+    my $config = $self->{_oConfig}->GetRunningConfig();
 
     $logger->debug("$self->{'_sName'} - ", '### Entering Method ###');
     $logger->debug("$self->{'_sName'} - ", "lang: $lang");
-    $logger->debug("$self->{'_sName'} - ", "_hValidLanguages:\n", ${$oDebugger->DumpHashKeys($self->{'_hValidLanguages'})});        
+    $logger->debug("$self->{'_sName'} - ", "_hValidLanguages:\n", ${$self->{_oDebugger}->DumpHashKeys($self->{'_hValidLanguages'})});        
 
     $logger->debug("$self->{'_sName'} - ", "recieved lang: $lang");
     
@@ -128,8 +135,8 @@ sub LoadStrings
     #   hash_ref (hash of strings)
     my $self = shift;
     my $sTree = shift;
-    my $logger = $oDebugger->GetLogger($self);
-    my $config = $oConfig->GetRunningConfig();
+    my $logger = $self->{_oDebugger}->GetLogger($self);
+    my $config = $self->{_oConfig}->GetRunningConfig();
     
     # Lets add the directory tree to the object so we can use it again later with a reload strings method
     $self->{'_sDirectoryTree'} = $sTree;

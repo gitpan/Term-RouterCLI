@@ -24,6 +24,8 @@ use strict;
 use Term::RouterCLI::Config;
 use Term::RouterCLI::Languages;
 use UserExec;
+use Enable::Debug;
+use Enable::No;
 use Enable::Show; 
 use Enable::Configure::Terminal;
 
@@ -37,6 +39,10 @@ sub CommandTree {
     my $hash_ref = {};
 
     $hash_ref = {
+        "no"  => {
+            hidden  => 1,
+            cmds    => &Enable::No::CommandTree($self)
+        },
         "show"  => {
             desc    => $strings->{show_d},
             help    => $strings->{show_h},
@@ -59,6 +65,11 @@ sub CommandTree {
                 $self->CreateCommandTree(&UserExec::CommandTree($self));
             }
         },
+        "debug"  => {
+            desc    => $strings->{debug_d},
+            help    => $strings->{debug_h},
+            cmds    => &Enable::Debug::CommandTree($self)
+        },
         "configure" => {
             desc    => $strings->{configure_d},
             help    => $strings->{configure_h},
@@ -78,6 +89,10 @@ sub CommandTree {
 
     # UserExec level commands should also be avaliable in Enable Mode
     my $hash_ref_additional = &UserExec::CommandTree($self);
+
+    # Remove certain keys as it does not make since that you could re-issue the enable command
+    # once you are at the enable level
+    delete $hash_ref_additional->{'enable'};
     
     # Enable level commands should take presidence over UserExec commands if they are duplicates
     my %hash = (%$hash_ref_additional, %$hash_ref);

@@ -26,7 +26,7 @@ use Term::RouterCLI::Debugger;
 use Log::Log4perl;
 use FileHandle;
 
-our $VERSION     = '0.99_16';
+our $VERSION     = '1.00';
 $VERSION = eval $VERSION;
 
 

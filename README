@@ -31,6 +31,39 @@ INSTALLATION
     make
     make test
     make install
+    
+    Mac OSX Lion
+        Mac OSX does not have support natively for GNU's readline libraries.  As such things like
+        perl's Term::ReadLine::Gnu will not install via CPAN or otherwise.  I got this to work by
+        using Homebrew to install readline (https://github.com/mxcl/homebrew/wiki/installation) and
+        then linking to the readline libraries when I built the makefile in Perl.  NOTE: Homebrew
+        installs core libraries and things like readline in a out-of-the-way directory so that other
+        things do not break.  Here are the steps I followed:
+        1) Install Homebrew.  Run the following from a terminal window/shell:
+            /usr/bin/ruby -e "$(curl -fsSL https://raw.github.com/gist/323731)"
+        2) Update Homebrew
+            brew update
+        3) Install readline
+            brew install readline
+        4) Download Term::ReadLine::Gnu from CPAN and untar
+        5) Make makefile, make, and install
+            perl Makefile.PL --includedir=/usr/local/Cellar/readline/6.2.1/include --libdir=/usr/local/Cellar/readline/6.2.1/lib
+            make
+            make install
+
+
+DOXYGEN
+    Term::RouterCLI uses Doxygen for documentation.  Here are some notes for getting Doxygen working
+    various platforms.
+    
+    The dot tool is required for dependency graphs and you can get binary builds for OSX Lion at:
+    http://www.graphviz.org/
+    
+    Mac OSX Lion
+        When you install Doxygen it will add the doxywizard application just called "Doxygen" in the
+        Applications directory.  A symlink will need to be created to allow command line (terminal)
+        access to the command line doxygen program.  This can be done with:
+        ln -s /Applications/Doxygen.app/Contents/Resources/doxygen /usr/local/bin/
 
 
 DEPENDENCIES

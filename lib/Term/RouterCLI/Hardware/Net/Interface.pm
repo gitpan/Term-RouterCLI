@@ -26,7 +26,7 @@ use Term::RouterCLI::Config;
 use Term::RouterCLI::Debugger;
 use Log::Log4perl;
 
-our $VERSION     = '0.99_16';
+our $VERSION     = '1.00';
 $VERSION = eval $VERSION;
 
 # Define our parent
@@ -35,6 +35,7 @@ use parent qw(Term::RouterCLI::Hardware::Net);
 
 my $oDebugger = new Term::RouterCLI::Debugger();
 my $oConfig = new Term::RouterCLI::Config();
+# TODO move this to the configuration file
 my $ethtool = './bin/ethtool';
 
 

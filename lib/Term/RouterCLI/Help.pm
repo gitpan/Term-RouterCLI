@@ -29,7 +29,7 @@ use parent qw(Exporter);
 our @EXPORT      = qw();
 our @EXPORT_OK   = qw( PrintHelp _GetCommandHelp _GetCommandSummaries _GetCommandSummary);
 our %EXPORT_TAGS = ( 'all' => [ @EXPORT_OK ] );
-our $VERSION     = '0.99_16';
+our $VERSION     = '1.00';
 $VERSION = eval $VERSION;
 
 

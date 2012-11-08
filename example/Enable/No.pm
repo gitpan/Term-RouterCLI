@@ -6,29 +6,37 @@
 # license (see the LICENSE file) and this notice, disclaimer and    #
 # comment box remain intact and unchanged.                          #
 #                                                                   #
-# Package:     Term::RouterCLI::Hardware                            #
-# Class:       Net                                                  #
+# Package:     Term::RouterCLI                                      #
+# Class:       Enable::No                                           #
 # Description: Methods for building a Router (Stanford) style CLI   #
 #                                                                   #
 # Written by:  Bret Jordan (jordan at open1x littledot org)         #
-# Created:     2011-04-27                                           #
+# Created:     2011-09-16                                           #
 ##################################################################### 
 #
 #
 #
 #
-package Term::RouterCLI::Hardware::Net;
+package Enable::No;
 
-use 5.8.8;
 use strict;
-use warnings;
+use Term::RouterCLI::Languages;
+use Enable::Debug;
 
-our $VERSION     = '1.00';
-$VERSION = eval $VERSION;
+sub CommandTree {
+    my $self = shift;
+    my $lang = new Term::RouterCLI::Languages();
+    my $strings = $lang->LoadStrings("Enable/No");
+    my $hash_ref = {};
 
-# Define our parent
-use parent qw(Term::RouterCLI::Hardware);
-
-
+    $hash_ref = {
+        "debug"  => {
+            desc    => $strings->{debug_d},
+            help    => $strings->{debug_h},
+            cmds    => &Enable::Debug::CommandTree($self)
+        },
+    };
+    return($hash_ref);
+}
 
 return 1;

@@ -7,31 +7,34 @@
 # comment box remain intact and unchanged.                          #
 #                                                                   #
 # Package:     Term::RouterCLI                                      #
-# Class:       Hardware                                             #
-# Description: Methods for building a Router (Stanford) style CLI   #
+# Class:       Base                                                 #
+# Description: Methods for building a router (Stanford) style CLI   #
 #                                                                   #
 # Written by:  Bret Jordan (jordan at open1x littledot org)         #
-# Created:     2011-04-27                                           #
+# Created:     2011-10-06                                           #
 ##################################################################### 
 #
 #
 #
 #
-package Term::RouterCLI::Hardware;
+package Term::RouterCLI::Base;
 
 use 5.8.8;
 use strict;
 use warnings;
+use Term::RouterCLI::Config;
+use Term::RouterCLI::Debugger;
 
 our $VERSION     = '1.00';
 $VERSION = eval $VERSION;
+
 
 
 sub new
 {
     my $pkg = shift;
     my $class = ref($pkg) || $pkg;  
-
+    
     my $self = {};
     $self->{'_sName'}                 = $pkg;        # Lets set the object name so we can use it in debugging
     bless ($self, $class);
@@ -45,18 +48,31 @@ sub DESTROY
 {
     my $self = shift;
     $self = {};
-} 
+}
 
-sub _init
+sub _initDebugger
 {
     my $self = shift;
-    my %hParameters = @_;
-    
-    # Lets overwrite any defaults with values that are passed in
-    if (%hParameters)
-    {
-        foreach (keys (%hParameters)) { $self->{$_} = $hParameters{$_}; }
-    }
+    # Create an object to the debugger class
+    $self->{'_oDebugger'} = new Term::RouterCLI::Debugger();
 }
+
+sub _initConfig
+{
+    my $self = shift;
+    # Create an object to the debugger class
+    $self->{'_oConfig'} = new Term::RouterCLI::Config();
+}
+
+
+sub _ExpandTildes
+{
+    my $self = shift;
+    my $parameter = shift;
+    
+    $parameter =~ s/^~([^\/]*)/$1?(getpwnam($1))[7]:$ENV{HOME}||$ENV{LOGDIR}||(getpwuid($>))[7]/e;
+    return $parameter;
+}
+
 
 return 1;

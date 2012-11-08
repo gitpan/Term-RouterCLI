@@ -1,4 +1,5 @@
 Changes
+Doxyfile
 HISTORY
 LICENSE
 Makefile.PL
@@ -11,6 +12,7 @@ t/completion_hidden.t
 t/findcommand.t
 lib/Term/RouterCLI.pm
 lib/Term/RouterCLI/Auth.pm
+lib/Term/RouterCLI/Base.pm
 lib/Term/RouterCLI/CommandTree.pm
 lib/Term/RouterCLI/Config.pm
 lib/Term/RouterCLI/Debugger.pm
@@ -29,6 +31,8 @@ example/bin/patch_ethtool-2.6.39_ethtool.c
 example/UserExec.pm
 example/UserExec/Show.pm
 example/Enable.pm
+example/Enable/Debug.pm
+example/Enable/No.pm
 example/Enable/Show.pm
 example/Enable/Configure/Terminal.pm
 example/etc/RouterCLI.conf
